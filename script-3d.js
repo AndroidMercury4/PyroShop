@@ -675,57 +675,121 @@ function createCabin() {
 }
 
 /* -------------------- BLOG: LIBRARY -------------------- */
-function createLibrary() {
+
+function createOakTree(){
   const g = new THREE.Group();
+  const trunk = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.35, 0.55, 4.0, 10),
+    new THREE.MeshStandardMaterial({ map: TEX.wood, roughness: 1.0 })
+  );
+  trunk.position.y = 2.0;
+  g.add(trunk);
 
-  const wall = new THREE.MeshStandardMaterial({ color: 0x0f1424, roughness: 0.96 });
-  const shelf = new THREE.MeshStandardMaterial({ color: 0x151a2a, roughness: 0.86 });
-
-  const back = new THREE.Mesh(new THREE.BoxGeometry(6.3, 4.2, 1.05), wall);
-  back.position.set(0, 2.1, 0);
-  g.add(back);
-
-  for (let r = 0; r < 4; r++) {
-    const plank = new THREE.Mesh(new THREE.BoxGeometry(5.9, 0.12, 0.82), shelf);
-    plank.position.set(0, 0.85 + r * 0.9, 0.12);
-    g.add(plank);
-
-    for (let i = 0; i < 10; i++) {
-      const book = new THREE.Mesh(
-        new THREE.BoxGeometry(0.36, 0.58 + (i % 3) * 0.06, 0.18),
-        new THREE.MeshStandardMaterial({
-          color: 0x7aa2ff,
-          roughness: 0.7,
-          metalness: 0.05,
-          emissive: 0x0b1020,
-        })
-      );
-      book.position.set(-2.55 + i * 0.57, 1.08 + r * 0.9, 0.38);
-      g.add(book);
-    }
-  }
+  const leaves = new THREE.Mesh(
+    new THREE.SphereGeometry(1.9, 14, 12),
+    new THREE.MeshStandardMaterial({ color: 0x0f3a22, roughness: 1.0 })
+  );
+  leaves.position.y = 4.6;
+  g.add(leaves);
   return g;
 }
 
-/* -------------------- ABOUT: PLINTH -------------------- */
-function createAboutPlinth() {
+function stoneTexture(){
+  return makeCanvasTexture((ctx,s)=>{
+    ctx.fillStyle="#111726"; ctx.fillRect(0,0,s,s);
+    const img=ctx.getImageData(0,0,s,s);
+    for(let i=0;i<img.data.length;i+=4){
+      const n=(Math.random()*70)|0;
+      img.data[i]=18+n; img.data[i+1]=22+n; img.data[i+2]=35+n; img.data[i+3]=255;
+    }
+    ctx.putImageData(img,0,0);
+    for(let i=0;i<16;i++){
+      ctx.strokeStyle="rgba(0,0,0,0.18)";
+      ctx.lineWidth=3+Math.random()*4;
+      ctx.beginPath();
+      ctx.moveTo(Math.random()*s, Math.random()*s);
+      ctx.lineTo(Math.random()*s, Math.random()*s);
+      ctx.stroke();
+    }
+  },512);
+}
+
+function createLibrary() {
   const g = new THREE.Group();
-  const mat = new THREE.MeshStandardMaterial({ color: 0x101625, roughness: 1.0 });
 
-  const base = new THREE.Mesh(new THREE.CylinderGeometry(2.25, 2.45, 0.55, 24), mat);
-  base.position.set(0, 0.275, 0);
-  g.add(base);
+  // Two oak trees
+  const t1 = createOakTree(); t1.position.set(-3.9, 0, 1.2);
+  const t2 = createOakTree(); t2.position.set( 3.9, 0, 1.2);
+  g.add(t1); g.add(t2);
 
-  const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.82, 1.02, 2.5, 18), mat);
-  pillar.position.set(0, 1.8, 0);
-  g.add(pillar);
+  // Stone “carved” shelving wall
+  const stoneTex = stoneTexture();
+  const stoneMat = new THREE.MeshStandardMaterial({ map: stoneTex, roughness: 1.0 });
+  stoneMat.map.repeat.set(2,2);
 
-  const plaque = new THREE.Mesh(
-    new THREE.PlaneGeometry(2.25, 1.05),
-    new THREE.MeshStandardMaterial({ color: 0x0b1020, emissive: 0x9bffcf, emissiveIntensity: 0.22 })
-  );
-  plaque.position.set(0, 1.8, 1.08);
-  g.add(plaque);
+  const wall = new THREE.Mesh(new THREE.BoxGeometry(7.0, 4.3, 1.2), stoneMat);
+  wall.position.set(0, 2.15, 0);
+  g.add(wall);
+
+  // shelves carved out
+  const shelfMat = new THREE.MeshStandardMaterial({ map: stoneTex, roughness: 1.0 });
+
+  for (let r = 0; r < 4; r++) {
+    const shelf = new THREE.Mesh(new THREE.BoxGeometry(6.4, 0.16, 0.9), shelfMat);
+    shelf.position.set(0, 0.95 + r * 0.9, 0.25);
+    g.add(shelf);
+  }
+
+  // Neon label “LIBRARY”
+  const libTex = neonTextTexture("LIBRARY", "#9bffcf");
+  const libMat = new THREE.MeshStandardMaterial({ map: libTex, emissive: 0x9bffcf, emissiveIntensity: 0.65, transparent:true });
+  const libLabel = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 0.9), libMat);
+  libLabel.position.set(0, 4.15, 0.75);
+  g.add(libLabel);
+
+  // Books (interactive)
+  const bookMat = new THREE.MeshStandardMaterial({ color: 0x7aa2ff, roughness: 0.7, metalness: 0.05, emissive: 0x0b1020 });
+
+  // Build some placeholder “book data”
+  const bookData = [
+    { title:"Wood Joinery Notes", date:"2019-06-12", pages:[
+      "Page 1: Mortise & tenon basics...\n\n(placeholder text)",
+      "Page 2: Tools list and safety...\n\n(placeholder text)",
+      "Page 3: Common mistakes...\n\n(placeholder text)"
+    ]},
+    { title:"Ilam Field Sketches", date:"2021-09-03", pages:[
+      "Page 1: Landscape observations...\n\n(placeholder text)",
+      "Page 2: Material weathering notes...\n\n(placeholder text)"
+    ]},
+    { title:"Bonecraft Reference", date:"2018-02-22", pages:[
+      "Page 1: Ethical sourcing & cleaning...\n\n(placeholder text)",
+      "Page 2: Small carving techniques...\n\n(placeholder text)",
+      "Page 3: Finishes...\n\n(placeholder text)"
+    ]},
+  ];
+
+  let bi = 0;
+  for (let r = 0; r < 4; r++) {
+    for (let i = 0; i < 10; i++) {
+      const bd = bookData[bi % bookData.length];
+      const book = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.58 + (i % 3) * 0.06, 0.18), bookMat.clone());
+      book.position.set(-2.85 + i * 0.63, 1.12 + r * 0.9, 0.62);
+
+      book.userData = {
+        type: "book",
+        title: bd.title,
+        date: bd.date,
+        pages: bd.pages
+      };
+      g.add(book);
+
+      // register interactable later (we push all child meshes after adding g)
+      bi++;
+    }
+  }
+
+  // Make whole library clickable (travel)
+  g.userData = { type:"building", zone:"blog" };
 
   return g;
 }
