@@ -264,7 +264,6 @@ function init3D() {
   moveCameraTo("home");
 
   // Start loop
-  animate();
 }
 
 function addPathArc() {
