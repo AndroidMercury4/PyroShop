@@ -18,8 +18,6 @@
   <body>
     <!-- 3D WORLD -->
     <div id="scene"></div>
-
-    <!-- Hover tooltip -->
     <div id="hoverTip" class="hoverTip" hidden></div>
 
     <!-- HUD -->
@@ -29,33 +27,11 @@
         <div class="muted tiny" id="zoneLabel">Home</div>
       </div>
       <div class="hud-right">
+        <button class="btn ghost" id="btnBack" hidden>← Back</button>
         <button class="btn ghost" id="btnHome">Home</button>
         <button class="btn ghost" id="btnBasket">Basket</button>
       </div>
     </header>
-
-    <!-- Book Viewer (fullscreen) -->
-    <div id="bookModal" class="bookModal" hidden>
-      <button id="bookClose" class="bookClose" aria-label="Close book">← Back</button>
-
-      <div class="bookShell">
-        <div class="bookHeader">
-          <div id="bookTitle" class="bookTitle">Book Title</div>
-          <div id="bookMeta" class="bookMeta">Date</div>
-        </div>
-
-        <div class="bookPages">
-          <div id="bookPage" class="bookPage">
-            <div id="bookPageText"></div>
-          </div>
-        </div>
-
-        <div class="bookControls">
-          <button id="bookPrev" class="btn ghost">← Prev</button>
-          <button id="bookNext" class="btn ghost">Next →</button>
-        </div>
-      </div>
-    </div>
 
     <!-- Product panel -->
     <div class="product-panel" id="productPanel" hidden>
@@ -63,18 +39,9 @@
         <div class="product-left">
           <div class="muted tiny">Selected item</div>
           <div class="product-title" id="productTitle">Product</div>
-
           <img id="productImg" alt="Product image" />
-
           <div class="muted" id="productDesc">Description</div>
           <div class="muted tiny" id="productPrice">£0.00</div>
-
-          <div class="imgph">
-            <div class="imgph-inner">
-              <div class="imgph-tag">Placeholder Image</div>
-              <div class="imgph-name" id="productImgText">WOODCRAFT_01</div>
-            </div>
-          </div>
         </div>
 
         <div class="panel-actions">
@@ -100,6 +67,29 @@
         <div class="basket-footer">
           <div class="muted">Total: <strong id="basketTotal">£0.00</strong></div>
           <button class="btn primary" id="checkoutBtn" disabled>Checkout (later)</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Book Viewer (fullscreen) -->
+    <div id="bookModal" class="bookModal" hidden>
+      <button id="bookClose" class="bookClose" aria-label="Close book">← Back</button>
+
+      <div class="bookShell">
+        <div class="bookHeader">
+          <div id="bookTitle" class="bookTitle">Book Title</div>
+          <div id="bookMeta" class="bookMeta">Date</div>
+        </div>
+
+        <div class="bookPages">
+          <div id="bookPage" class="bookPage">
+            <div id="bookPageText"></div>
+          </div>
+        </div>
+
+        <div class="bookControls">
+          <button id="bookPrev" class="btn ghost">← Prev</button>
+          <button id="bookNext" class="btn ghost">Next →</button>
         </div>
       </div>
     </div>
