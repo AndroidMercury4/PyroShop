@@ -58,6 +58,7 @@ body{
   background:rgba(10,12,18,.65);
   box-shadow:var(--shadow);
 }
+
 .muted{color:var(--muted)}
 .tiny{font-size:12px}
 
@@ -89,7 +90,7 @@ body{
 }
 .product-panel-inner{
   border:1px solid var(--border);
-  background:rgba(10,12,18,.85);
+  background:rgba(10,12,18,.86);
   border-radius:18px;
   padding:14px;
   display:flex;
