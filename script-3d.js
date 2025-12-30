@@ -1,23 +1,26 @@
 import * as THREE from "https://esm.sh/three@0.160.0";
 
 /* ============================================================
-   PYROSHOP WORLD (Option B: Styled placeholders)
-   - Single 3D world from start (no page routing)
-   - Home hub with campfire
-   - Shop (cabin) left, Blog (library) right, About forward
-   - In-world signs to travel (locked camera rails)
-   - Products in Shop -> panel -> Add to basket
-   - Basket overlay works (localStorage)
+   PYROSHOP WORLD v2
+   - Single 3D world from start (no routing)
+   - Smooth, slower camera rails (eased)
+   - Smaller/lower signs with readable text (canvas textures)
+   - Campfire + log benches
+   - Grass + woodland background
+   - Moon + ambient light
+   - Dirt paths + torches to each location
+   - Procedural textures (no downloads)
+   - Copyright-safe product images (generated thumbnails)
 ============================================================ */
 
-// -------------------- DOM --------------------
+/* -------------------- DOM -------------------- */
 const zoneLabel = document.getElementById("zoneLabel");
 
 const panel = document.getElementById("productPanel");
 const titleEl = document.getElementById("productTitle");
 const descEl = document.getElementById("productDesc");
 const priceEl = document.getElementById("productPrice");
-const imgTextEl = document.getElementById("productImgText");
+const imgEl = document.getElementById("productImg"); // <- add <img id="productImg"> in HTML
 
 const closePanelBtn = document.getElementById("closePanel");
 if (closePanelBtn) closePanelBtn.onclick = () => (panel.hidden = true);
@@ -35,7 +38,7 @@ if (closeBasketBtn) closeBasketBtn.onclick = () => (basketPanel.hidden = true);
 
 const btnHome = document.getElementById("btnHome");
 
-// -------------------- HELPERS --------------------
+/* -------------------- HELPERS -------------------- */
 function saveBasket() {
   localStorage.setItem("basket", JSON.stringify(basket));
 }
@@ -90,92 +93,233 @@ function renderBasket() {
 
 if (btnBasket) {
   btnBasket.onclick = () => {
-    if (!basketPanel) return;
     basketPanel.hidden = false;
     renderBasket();
   };
 }
 
-// -------------------- CAMERA RAILS --------------------
-let camTargetPos = null;
-let camTargetLook = null;
-let camMoving = false;
+/* -------------------- CAMERA RAILS (SMOOTH + SLOW) -------------------- */
 let currentZone = "home";
 
+// These are “rail stops”
 const CAMERA_POINTS = {
   home: {
     label: "Home",
-    pos: new THREE.Vector3(0, 1.75, 9.5),
-    look: new THREE.Vector3(0, 1.3, 0),
+    pos: new THREE.Vector3(0, 1.85, 10.5),
+    look: new THREE.Vector3(0, 1.25, 0),
   },
   shop: {
     label: "Shop",
-    pos: new THREE.Vector3(-12.2, 1.75, 7.4),
-    look: new THREE.Vector3(-10, 1.2, 0),
+    pos: new THREE.Vector3(-13.2, 1.85, 8.2),
+    look: new THREE.Vector3(-10, 1.25, 0),
   },
   blog: {
     label: "Blog",
-    pos: new THREE.Vector3(12.2, 1.75, 7.4),
-    look: new THREE.Vector3(10, 1.2, 0),
+    pos: new THREE.Vector3(13.2, 1.85, 8.2),
+    look: new THREE.Vector3(10, 1.25, 0),
   },
   about: {
     label: "About",
-    pos: new THREE.Vector3(0, 1.75, -7.8),
+    pos: new THREE.Vector3(0, 1.85, -9.5),
     look: new THREE.Vector3(0, 1.25, -14),
   },
 };
 
+// Smooth tween state
+let camTween = null;
+// tweak this for “slower/smoother”
+const CAM_TRAVEL_MS = 1800;
+
+function easeInOutCubic(x) {
+  return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+}
+
 function moveCameraTo(zoneName) {
   const p = CAMERA_POINTS[zoneName];
-  if (!p) return;
+  if (!p || !camera) return;
 
-  camTargetPos = p.pos.clone();
-  camTargetLook = p.look.clone();
-  camMoving = true;
   currentZone = zoneName;
-
   if (zoneLabel) zoneLabel.textContent = p.label;
 
-  // Hide overlays while moving (clean feel)
+  // Hide overlays while moving
   if (panel) panel.hidden = true;
   if (basketPanel) basketPanel.hidden = true;
+
+  camTween = {
+    t0: performance.now(),
+    dur: CAM_TRAVEL_MS,
+    fromPos: camera.position.clone(),
+    toPos: p.pos.clone(),
+    fromLook: getCurrentLookPoint(),
+    toLook: p.look.clone(),
+  };
+}
+
+function getCurrentLookPoint() {
+  // approximate “current look target”
+  const fwd = new THREE.Vector3();
+  camera.getWorldDirection(fwd);
+  return camera.position.clone().add(fwd.multiplyScalar(10));
 }
 
 if (btnHome) btnHome.onclick = () => moveCameraTo("home");
 
-// -------------------- 3D INIT --------------------
+/* -------------------- 3D INIT -------------------- */
 const sceneHost = document.getElementById("scene");
 let renderer, scene, camera, raycaster, mouse;
 
 const interactables = []; // signs + products
-const productMeshes = []; // only products
+const productMeshes = [];
 let selectedProduct = null;
 
 // Products shown in shop
 const products = [
-  { id: "p1", name: "Oak Rune Token", desc: "Hand-finished oak token with carved symbol.", price: 18, img: "WOODCRAFT_01" },
-  { id: "p2", name: "Walnut Mini Totem", desc: "Small walnut carving, matte oil finish.", price: 25, img: "WOODCRAFT_02" },
-  { id: "p3", name: "Maple Desk Charm", desc: "Minimal charm piece for desk or shelf.", price: 12, img: "WOODCRAFT_03" },
-  { id: "p4", name: "Ash Key Fob", desc: "Simple key fob, durable and light.", price: 9, img: "WOODCRAFT_04" },
-  { id: "p5", name: "Custom Sigil Block", desc: "Commission block — your design, your vibe.", price: 45, img: "CUSTOM_SIGIL" },
+  { id: "p1", name: "Oak Rune Token", desc: "Hand-finished oak token with carved symbol.", price: 18 },
+  { id: "p2", name: "Walnut Mini Totem", desc: "Small walnut carving, matte oil finish.", price: 25 },
+  { id: "p3", name: "Maple Desk Charm", desc: "Minimal charm piece for desk or shelf.", price: 12 },
+  { id: "p4", name: "Ash Key Fob", desc: "Simple key fob, durable and light.", price: 9 },
+  { id: "p5", name: "Custom Sigil Block", desc: "Commission block — your design, your vibe.", price: 45 },
 ];
 
-// temp vectors MUST exist before animate runs
-const _tmpForward = new THREE.Vector3();
-const _tmpLookPoint = new THREE.Vector3();
+/* -------------------- PROCEDURAL TEXTURES (NO DOWNLOADS) -------------------- */
+function makeCanvasTexture(drawFn, size = 512) {
+  const c = document.createElement("canvas");
+  c.width = c.height = size;
+  const ctx = c.getContext("2d");
+  drawFn(ctx, size);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.anisotropy = 4;
+  return tex;
+}
+
+function texWood() {
+  return makeCanvasTexture((ctx, s) => {
+    ctx.fillStyle = "#2a1f14";
+    ctx.fillRect(0, 0, s, s);
+    for (let i = 0; i < 140; i++) {
+      const y = (i / 140) * s;
+      const a = 0.06 + Math.random() * 0.07;
+      ctx.fillStyle = `rgba(255, 210, 160, ${a})`;
+      ctx.fillRect(0, y, s, 1 + Math.random() * 2);
+    }
+    for (let i = 0; i < 18; i++) {
+      ctx.strokeStyle = `rgba(0,0,0,0.15)`;
+      ctx.lineWidth = 3 + Math.random() * 4;
+      ctx.beginPath();
+      const y = Math.random() * s;
+      ctx.moveTo(0, y);
+      ctx.bezierCurveTo(s * 0.3, y + Math.random() * 30, s * 0.7, y + Math.random() * 30, s, y);
+      ctx.stroke();
+    }
+  });
+}
+
+function texDirt() {
+  return makeCanvasTexture((ctx, s) => {
+    ctx.fillStyle = "#1a1410";
+    ctx.fillRect(0, 0, s, s);
+
+    // noisy speckles
+    const img = ctx.getImageData(0, 0, s, s);
+    for (let i = 0; i < img.data.length; i += 4) {
+      const n = (Math.random() * 50) | 0;
+      img.data[i] = 30 + n;
+      img.data[i + 1] = 22 + (n * 0.8) | 0;
+      img.data[i + 2] = 18 + (n * 0.6) | 0;
+      img.data[i + 3] = 255;
+    }
+    ctx.putImageData(img, 0, 0);
+
+    // darker patches
+    for (let i = 0; i < 12; i++) {
+      ctx.fillStyle = "rgba(0,0,0,0.15)";
+      ctx.beginPath();
+      ctx.ellipse(Math.random() * s, Math.random() * s, 80 + Math.random() * 140, 50 + Math.random() * 120, Math.random(), 0, Math.PI * 2);
+      ctx.fill();
+    }
+  });
+}
+
+function texGrass() {
+  return makeCanvasTexture((ctx, s) => {
+    ctx.fillStyle = "#0b1511";
+    ctx.fillRect(0, 0, s, s);
+
+    for (let i = 0; i < 20000; i++) {
+      const x = Math.random() * s;
+      const y = Math.random() * s;
+      const g = 90 + (Math.random() * 120) | 0;
+      ctx.fillStyle = `rgba(40, ${g}, 70, 0.22)`;
+      ctx.fillRect(x, y, 1, 1);
+    }
+
+    // thin blades
+    for (let i = 0; i < 1500; i++) {
+      ctx.strokeStyle = "rgba(90,200,120,0.15)";
+      ctx.lineWidth = 1;
+      const x = Math.random() * s;
+      const y = Math.random() * s;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + (Math.random() * 8 - 4), y - (5 + Math.random() * 18));
+      ctx.stroke();
+    }
+  });
+}
+
+function makeProductThumb(name) {
+  // copyright-safe generated thumbnail
+  const c = document.createElement("canvas");
+  c.width = 800;
+  c.height = 500;
+  const ctx = c.getContext("2d");
+
+  // background gradient
+  const g = ctx.createLinearGradient(0, 0, 800, 500);
+  g.addColorStop(0, "#0b1020");
+  g.addColorStop(1, "#141a2a");
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 800, 500);
+
+  // “product silhouette”
+  ctx.fillStyle = "rgba(122,162,255,0.25)";
+  ctx.beginPath();
+  ctx.roundRect(220, 120, 360, 260, 22);
+  ctx.fill();
+
+  ctx.strokeStyle = "rgba(155,255,207,0.25)";
+  ctx.lineWidth = 4;
+  ctx.strokeRect(50, 50, 700, 400);
+
+  // title text
+  ctx.fillStyle = "rgba(255,255,255,0.92)";
+  ctx.font = "700 44px Inter, system-ui, sans-serif";
+  ctx.fillText(name, 70, 95);
+
+  // small subtitle
+  ctx.fillStyle = "rgba(255,255,255,0.6)";
+  ctx.font = "500 22px Inter, system-ui, sans-serif";
+  ctx.fillText("PyroShop • Handmade Woodcraft", 70, 135);
+
+  return c.toDataURL("image/png");
+}
+
+/* -------------------- WORLD BUILD -------------------- */
+const TEX = {
+  wood: texWood(),
+  dirt: texDirt(),
+  grass: texGrass(),
+};
 
 init3D();
 
 function init3D() {
-  if (!sceneHost) {
-    console.error("Missing #scene element in HTML.");
-    return;
-  }
-
   scene = new THREE.Scene();
-  scene.fog = new THREE.Fog(0x07090f, 10, 55);
+  scene.fog = new THREE.Fog(0x07090f, 12, 85);
 
-  camera = new THREE.PerspectiveCamera(60, sceneHost.clientWidth / sceneHost.clientHeight, 0.1, 220);
+  camera = new THREE.PerspectiveCamera(60, sceneHost.clientWidth / sceneHost.clientHeight, 0.1, 260);
   camera.position.copy(CAMERA_POINTS.home.pos);
   camera.lookAt(CAMERA_POINTS.home.look);
 
@@ -183,153 +327,182 @@ function init3D() {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.setSize(sceneHost.clientWidth, sceneHost.clientHeight);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
-
   sceneHost.innerHTML = "";
   sceneHost.appendChild(renderer.domElement);
 
-  // Lighting
-  scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+  // ---------- LIGHTING ----------
+  // Base ambient
+  scene.add(new THREE.AmbientLight(0xffffff, 0.35));
 
-  const key = new THREE.DirectionalLight(0x7aa2ff, 1.0);
-  key.position.set(7, 10, 6);
-  scene.add(key);
+  // Moonlight feel (cool)
+  const moonLight = new THREE.DirectionalLight(0x93b7ff, 0.9);
+  moonLight.position.set(14, 20, 10);
+  scene.add(moonLight);
 
-  const rim = new THREE.DirectionalLight(0x9bffcf, 0.7);
-  rim.position.set(-10, 7, -3);
+  // Rim/greenish bounce
+  const rim = new THREE.DirectionalLight(0x9bffcf, 0.35);
+  rim.position.set(-16, 12, -8);
   scene.add(rim);
 
-  // Ground
-  const ground = new THREE.Mesh(
-    new THREE.PlaneGeometry(250, 250),
-    new THREE.MeshStandardMaterial({ color: 0x0b0f1a, roughness: 0.98, metalness: 0.0 })
+  // Moon object (visual)
+  const moon = new THREE.Mesh(
+    new THREE.SphereGeometry(1.6, 24, 18),
+    new THREE.MeshStandardMaterial({ color: 0xe6f0ff, emissive: 0xa8c6ff, emissiveIntensity: 0.55, roughness: 0.9 })
   );
+  moon.position.set(18, 16, -26);
+  scene.add(moon);
+
+  // ---------- GROUND ----------
+  const ground = new THREE.Mesh(
+    new THREE.PlaneGeometry(300, 300),
+    new THREE.MeshStandardMaterial({ map: TEX.grass, roughness: 1.0, metalness: 0.0 })
+  );
+  ground.material.map.repeat.set(6, 6);
   ground.rotation.x = -Math.PI / 2;
   ground.position.y = 0;
   scene.add(ground);
 
-  // Subtle “mist” glow plane
-  const glow = new THREE.Mesh(
-    new THREE.CircleGeometry(55, 64),
-    new THREE.MeshStandardMaterial({
-      color: 0x0b1020,
-      emissive: 0x0b1020,
-      emissiveIntensity: 0.25,
-      transparent: true,
-      opacity: 0.6
-    })
-  );
-  glow.rotation.x = -Math.PI / 2;
-  glow.position.y = 0.01;
-  scene.add(glow);
+  // ---------- PATHS + TORCHES ----------
+  addDirtPathsAndTorches();
 
-  // Paths
-  addPathArc();
-
-  // HOME
+  // ---------- HOME ----------
   const campfire = createCampfire();
   campfire.position.set(0, 0, 0);
   scene.add(campfire);
 
-  // SHOP (left)
+  addLogBenches();
+
+  // ---------- SHOP (LEFT) ----------
   const cabin = createCabin();
   cabin.position.set(-10, 0, 0);
   scene.add(cabin);
 
-  // BLOG (right)
+  // ---------- BLOG (RIGHT) ----------
   const library = createLibrary();
   library.position.set(10, 0, 0);
   scene.add(library);
 
-  // ABOUT (forward)
+  // ---------- ABOUT (FORWARD) ----------
   const about = createAboutPlinth();
   about.position.set(0, 0, -14);
   scene.add(about);
 
-  // Signs (in-world nav)
-  addSign("SHOP", "shop", new THREE.Vector3(-5.2, 0, 3.8));
-  addSign("BLOG", "blog", new THREE.Vector3(5.2, 0, 3.8));
-  addSign("ABOUT", "about", new THREE.Vector3(0, 0, -5.8));
-  addSign("HOME", "home", new THREE.Vector3(0, 0, 5.4));
+  // ---------- SIGNS (LOW + SMALL + TEXT) ----------
+  addSign("SHOP", "shop", new THREE.Vector3(-5.8, 0, 3.6));
+  addSign("BLOG", "blog", new THREE.Vector3(5.8, 0, 3.6));
+  addSign("ABOUT", "about", new THREE.Vector3(0, 0, -6.4));
+  addSign("HOME", "home", new THREE.Vector3(0, 0, 6.2));
 
-  // Shop products
+  // ---------- PRODUCTS ----------
   addShopProducts();
 
-  // Interaction
+  // ---------- WOODLAND BACKDROP ----------
+  addWoodlandRing();
+
+  // ---------- INPUT ----------
   raycaster = new THREE.Raycaster();
   mouse = new THREE.Vector2();
   renderer.domElement.addEventListener("pointerdown", onPointerDown);
   window.addEventListener("resize", onResize);
 
   // Start at home
-  moveCameraTo("home");
-
-  // Start loop
+  if (zoneLabel) zoneLabel.textContent = "Home";
+  animate();
 }
 
-function addPathArc() {
-  const stoneMat = new THREE.MeshStandardMaterial({ color: 0x101625, roughness: 1.0 });
-  const points = [
-    new THREE.Vector3(0, 0, 4),
-    new THREE.Vector3(-3, 0, 3),
-    new THREE.Vector3(-6, 0, 2),
-    new THREE.Vector3(-9, 0, 1),
-    new THREE.Vector3(-10, 0, 0),
+/* -------------------- PATHS + TORCHES -------------------- */
+function addDirtPathsAndTorches() {
+  const dirtMat = new THREE.MeshStandardMaterial({ map: TEX.dirt, roughness: 1.0, metalness: 0.0 });
+  dirtMat.map.repeat.set(4, 4);
 
-    new THREE.Vector3(0, 0, 4),
-    new THREE.Vector3(3, 0, 3),
-    new THREE.Vector3(6, 0, 2),
-    new THREE.Vector3(9, 0, 1),
-    new THREE.Vector3(10, 0, 0),
+  function addPath(from, to, width = 2.2) {
+    const dx = to.x - from.x;
+    const dz = to.z - from.z;
+    const len = Math.sqrt(dx * dx + dz * dz);
+    const path = new THREE.Mesh(new THREE.PlaneGeometry(len, width), dirtMat);
+    path.rotation.x = -Math.PI / 2;
+    path.position.set((from.x + to.x) / 2, 0.02, (from.z + to.z) / 2);
+    path.rotation.z = Math.atan2(dz, dx);
+    scene.add(path);
 
-    new THREE.Vector3(0, 0, 2),
-    new THREE.Vector3(0, 0, -2),
-    new THREE.Vector3(0, 0, -6),
-    new THREE.Vector3(0, 0, -10),
-    new THREE.Vector3(0, 0, -14),
-  ];
+    // torches along the path
+    const steps = Math.max(3, Math.floor(len / 4));
+    for (let i = 1; i < steps; i++) {
+      const t = i / steps;
+      const x = from.x + dx * t;
+      const z = from.z + dz * t;
 
-  points.forEach((p, i) => {
-    const s = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.48, 0.09, 10), stoneMat);
-    s.position.set(p.x + (Math.sin(i) * 0.08), 0.045, p.z + (Math.cos(i) * 0.08));
-    s.rotation.y = i * 0.35;
-    scene.add(s);
+      const side = (i % 2 === 0) ? 1 : -1;
+      addTorch(new THREE.Vector3(x, 0, z + side * (width * 0.6)));
+    }
+  }
+
+  addPath(new THREE.Vector3(0,0,2.8), new THREE.Vector3(-10,0,0), 2.2);
+  addPath(new THREE.Vector3(0,0,2.8), new THREE.Vector3(10,0,0), 2.2);
+  addPath(new THREE.Vector3(0,0,0.2), new THREE.Vector3(0,0,-14), 2.5);
+}
+
+function addTorch(pos) {
+  const poleMat = new THREE.MeshStandardMaterial({ map: TEX.wood, roughness: 1.0 });
+  poleMat.map.repeat.set(1, 2);
+
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, 1.6, 10), poleMat);
+  pole.position.set(pos.x, 0.8, pos.z);
+  scene.add(pole);
+
+  const flameMat = new THREE.MeshStandardMaterial({
+    color: 0xffaa55,
+    emissive: 0xff6a11,
+    emissiveIntensity: 0.95,
+    roughness: 0.65
   });
+
+  const flame = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.38, 10), flameMat);
+  flame.position.set(pos.x, 1.65, pos.z);
+  scene.add(flame);
+
+  const light = new THREE.PointLight(0xff8844, 1.15, 8);
+  light.position.set(pos.x, 1.7, pos.z);
+  scene.add(light);
+
+  flame.userData = { torch: { light } };
 }
 
+/* -------------------- HOME: CAMPFIRE + BENCHES -------------------- */
 function createCampfire() {
   const g = new THREE.Group();
 
-  // logs
-  const logMat = new THREE.MeshStandardMaterial({ color: 0x2a1f14, roughness: 1.0 });
+  const logMat = new THREE.MeshStandardMaterial({ map: TEX.wood, roughness: 1.0 });
+  logMat.map.repeat.set(2, 1);
+
   for (let i = 0; i < 3; i++) {
-    const log = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 1.25, 12), logMat);
+    const log = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 1.35, 12), logMat);
     log.rotation.z = Math.PI / 2;
     log.rotation.y = i * (Math.PI / 3);
     log.position.set(0, 0.12, 0);
     g.add(log);
   }
 
-  // stones ring
   const stoneMat = new THREE.MeshStandardMaterial({ color: 0x121a2b, roughness: 1.0 });
-  for (let i = 0; i < 10; i++) {
+  for (let i = 0; i < 12; i++) {
     const stone = new THREE.Mesh(new THREE.DodecahedronGeometry(0.18, 0), stoneMat);
-    const a = (i / 10) * Math.PI * 2;
-    stone.position.set(Math.cos(a) * 0.85, 0.12, Math.sin(a) * 0.85);
+    const a = (i / 12) * Math.PI * 2;
+    stone.position.set(Math.cos(a) * 0.95, 0.11, Math.sin(a) * 0.95);
     g.add(stone);
   }
 
-  // flame + light
   const flameMat = new THREE.MeshStandardMaterial({
     color: 0xffaa55,
     emissive: 0xff6611,
     emissiveIntensity: 1.0,
     roughness: 0.6
   });
-  const flame = new THREE.Mesh(new THREE.ConeGeometry(0.24, 0.7, 10), flameMat);
-  flame.position.set(0, 0.62, 0);
+
+  const flame = new THREE.Mesh(new THREE.ConeGeometry(0.26, 0.75, 10), flameMat);
+  flame.position.set(0, 0.65, 0);
   g.add(flame);
 
-  const fireLight = new THREE.PointLight(0xff8844, 2.3, 14);
+  const fireLight = new THREE.PointLight(0xff8844, 2.2, 15);
   fireLight.position.set(0, 1.05, 0);
   g.add(fireLight);
 
@@ -337,11 +510,37 @@ function createCampfire() {
   return g;
 }
 
+function addLogBenches() {
+  const benchMat = new THREE.MeshStandardMaterial({ map: TEX.wood, roughness: 1.0 });
+  benchMat.map.repeat.set(2, 1);
+
+  const benchGeo = new THREE.CylinderGeometry(0.17, 0.17, 2.4, 14);
+  const benchY = 0.22;
+
+  const benches = [
+    { x: -1.9, z: 1.4, rot: 0.4 },
+    { x: 2.1, z: 1.3, rot: -0.5 },
+    { x: -2.0, z: -1.6, rot: -2.6 },
+    { x: 2.0, z: -1.7, rot: 2.7 },
+  ];
+
+  benches.forEach(b => {
+    const bench = new THREE.Mesh(benchGeo, benchMat);
+    bench.rotation.z = Math.PI / 2;
+    bench.rotation.y = b.rot;
+    bench.position.set(b.x, benchY, b.z);
+    scene.add(bench);
+  });
+}
+
+/* -------------------- SHOP: CABIN -------------------- */
 function createCabin() {
   const g = new THREE.Group();
 
-  const wood = new THREE.MeshStandardMaterial({ color: 0x2b2a2f, roughness: 0.92 });
-  const roof = new THREE.MeshStandardMaterial({ color: 0x151a2a, roughness: 0.9 });
+  const wood = new THREE.MeshStandardMaterial({ map: TEX.wood, roughness: 0.95 });
+  wood.map.repeat.set(2, 1);
+
+  const roof = new THREE.MeshStandardMaterial({ color: 0x151a2a, roughness: 0.95 });
 
   const base = new THREE.Mesh(new THREE.BoxGeometry(5.6, 2.9, 4.4), wood);
   base.position.set(0, 1.45, 0);
@@ -352,11 +551,10 @@ function createCabin() {
   roofMesh.position.set(0, 3.45, 0);
   g.add(roofMesh);
 
-  // door glow
   const doorMat = new THREE.MeshStandardMaterial({
     color: 0x0b1020,
     emissive: 0x7aa2ff,
-    emissiveIntensity: 0.45
+    emissiveIntensity: 0.35
   });
   const door = new THREE.Mesh(new THREE.PlaneGeometry(1.35, 2.1), doorMat);
   door.position.set(0, 1.25, 2.21);
@@ -365,6 +563,7 @@ function createCabin() {
   return g;
 }
 
+/* -------------------- BLOG: LIBRARY -------------------- */
 function createLibrary() {
   const g = new THREE.Group();
 
@@ -387,7 +586,7 @@ function createLibrary() {
           color: 0x7aa2ff,
           roughness: 0.7,
           metalness: 0.05,
-          emissive: 0x0b1020
+          emissive: 0x0b1020,
         })
       );
       book.position.set(-2.55 + i * 0.57, 1.08 + r * 0.9, 0.38);
@@ -397,6 +596,7 @@ function createLibrary() {
   return g;
 }
 
+/* -------------------- ABOUT: PLINTH -------------------- */
 function createAboutPlinth() {
   const g = new THREE.Group();
   const mat = new THREE.MeshStandardMaterial({ color: 0x101625, roughness: 1.0 });
@@ -411,7 +611,7 @@ function createAboutPlinth() {
 
   const plaque = new THREE.Mesh(
     new THREE.PlaneGeometry(2.25, 1.05),
-    new THREE.MeshStandardMaterial({ color: 0x0b1020, emissive: 0x9bffcf, emissiveIntensity: 0.28 })
+    new THREE.MeshStandardMaterial({ color: 0x0b1020, emissive: 0x9bffcf, emissiveIntensity: 0.22 })
   );
   plaque.position.set(0, 1.8, 1.08);
   g.add(plaque);
@@ -419,19 +619,47 @@ function createAboutPlinth() {
   return g;
 }
 
-function addSign(text, zoneName, position) {
-  const sign = new THREE.Mesh(
-    new THREE.BoxGeometry(2.3, 1.12, 0.16),
-    new THREE.MeshStandardMaterial({ color: 0x0b1020, roughness: 0.6, metalness: 0.1, emissive: 0x0b1020 })
-  );
-  sign.position.copy(position).add(new THREE.Vector3(0, 1.38, 0));
-  sign.userData = { type: "sign", zone: zoneName, label: text };
+/* -------------------- SIGNS (SMALL + LOW + TEXTURE) -------------------- */
+function makeSignTexture(text) {
+  return makeCanvasTexture((ctx, s) => {
+    ctx.fillStyle = "rgba(11,16,32,1)";
+    ctx.fillRect(0, 0, s, s);
 
-  const post = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.085, 0.085, 1.38, 10),
-    new THREE.MeshStandardMaterial({ color: 0x151a2a, roughness: 0.9 })
-  );
-  post.position.copy(position).add(new THREE.Vector3(0, 0.72, 0));
+    // border glow
+    ctx.strokeStyle = "rgba(122,162,255,0.55)";
+    ctx.lineWidth = 18;
+    ctx.strokeRect(20, 20, s - 40, s - 40);
+
+    // text
+    ctx.fillStyle = "rgba(255,255,255,0.92)";
+    ctx.font = "800 120px Inter, system-ui, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(text, s / 2, s / 2);
+  }, 512);
+}
+
+function addSign(text, zoneName, position) {
+  const tex = makeSignTexture(text);
+  const mat = new THREE.MeshStandardMaterial({
+    map: tex,
+    roughness: 0.65,
+    metalness: 0.1,
+    emissive: 0x0b1020,
+    emissiveIntensity: 0.12,
+  });
+
+  // smaller + lower
+  const sign = new THREE.Mesh(new THREE.PlaneGeometry(1.25, 0.65), mat);
+  sign.position.copy(position).add(new THREE.Vector3(0, 1.05, 0));
+  sign.rotation.y = Math.PI; // face inward a bit (optional)
+
+  // post
+  const postMat = new THREE.MeshStandardMaterial({ map: TEX.wood, roughness: 1.0 });
+  const post = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, 1.2, 10), postMat);
+  post.position.copy(position).add(new THREE.Vector3(0, 0.6, 0));
+
+  sign.userData = { type: "sign", zone: zoneName, label: text };
 
   scene.add(sign);
   scene.add(post);
@@ -439,18 +667,19 @@ function addSign(text, zoneName, position) {
   interactables.push(sign);
 }
 
+/* -------------------- PRODUCTS -------------------- */
 function addShopProducts() {
   // shelf near cabin
-  const shelfMat = new THREE.MeshStandardMaterial({ color: 0x141a2a, roughness: 0.75 });
+  const shelfMat = new THREE.MeshStandardMaterial({ color: 0x141a2a, roughness: 0.85 });
   const shelf = new THREE.Mesh(new THREE.BoxGeometry(7.2, 0.22, 1.25), shelfMat);
   shelf.position.set(-10, 1.05, 2.85);
   scene.add(shelf);
 
-  // products
+  // products as “wooden boxes”
   const baseMat = new THREE.MeshStandardMaterial({
-    color: 0x7aa2ff,
-    roughness: 0.35,
-    metalness: 0.25,
+    map: TEX.wood,
+    roughness: 0.9,
+    metalness: 0.05,
     emissive: 0x0b1020,
   });
 
@@ -465,9 +694,57 @@ function addShopProducts() {
   });
 }
 
-// -------------------- INPUT --------------------
+/* -------------------- WOODLAND BACKDROP -------------------- */
+function addWoodlandRing() {
+  // Low poly trees in a rough ring so it feels like a forest
+  const trunkMat = new THREE.MeshStandardMaterial({ map: TEX.wood, roughness: 1.0 });
+  const leafMat = new THREE.MeshStandardMaterial({ color: 0x0f3a22, roughness: 1.0 });
+
+  const trunkGeo = new THREE.CylinderGeometry(0.15, 0.22, 2.0, 10);
+  const leafGeo = new THREE.ConeGeometry(0.85, 2.4, 10);
+
+  for (let i = 0; i < 110; i++) {
+    const a = (i / 110) * Math.PI * 2;
+    const r = 40 + Math.random() * 22;
+    const x = Math.cos(a) * r + (Math.random() * 4 - 2);
+    const z = Math.sin(a) * r + (Math.random() * 4 - 2);
+
+    const trunk = new THREE.Mesh(trunkGeo, trunkMat);
+    trunk.position.set(x, 1.0, z);
+
+    const leaves = new THREE.Mesh(leafGeo, leafMat);
+    leaves.position.set(x, 2.7, z);
+    leaves.rotation.y = Math.random() * Math.PI;
+
+    const g = new THREE.Group();
+    g.add(trunk);
+    g.add(leaves);
+
+    const s = 0.85 + Math.random() * 1.25;
+    g.scale.setScalar(s);
+
+    scene.add(g);
+  }
+
+  // little grass tufts near hub
+  const tuftMat = new THREE.MeshStandardMaterial({ color: 0x1a6b3a, roughness: 1.0 });
+  const tuftGeo = new THREE.ConeGeometry(0.12, 0.45, 6);
+  for (let i = 0; i < 160; i++) {
+    const x = (Math.random() * 28 - 14);
+    const z = (Math.random() * 28 - 14);
+    if (Math.abs(x) < 3 && Math.abs(z) < 3) continue;
+
+    const tuft = new THREE.Mesh(tuftGeo, tuftMat);
+    tuft.position.set(x, 0.22, z);
+    tuft.rotation.y = Math.random() * Math.PI;
+    tuft.scale.setScalar(0.6 + Math.random() * 1.0);
+    scene.add(tuft);
+  }
+}
+
+/* -------------------- INPUT -------------------- */
 function onPointerDown(ev) {
-  if (!renderer || !camera || !raycaster || !mouse) return;
+  if (!renderer || !camera) return;
 
   const rect = renderer.domElement.getBoundingClientRect();
   mouse.x = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
@@ -486,13 +763,17 @@ function onPointerDown(ev) {
   }
 
   if (data.type === "product") {
+    // highlight
     productMeshes.forEach((m) => m.material.emissive.setHex(0x0b1020));
     obj.material.emissive.setHex(0x203060);
 
+    // update panel
     if (titleEl) titleEl.textContent = data.name;
     if (descEl) descEl.textContent = data.desc;
     if (priceEl) priceEl.textContent = money(data.price);
-    if (imgTextEl) imgTextEl.textContent = data.img || "WOODCRAFT_XX";
+
+    // generated image (copyright safe)
+    if (imgEl) imgEl.src = makeProductThumb(data.name);
 
     selectedProduct = { id: data.id, name: data.name, desc: data.desc, price: data.price };
     if (panel) panel.hidden = false;
@@ -509,14 +790,14 @@ if (addBtn) {
     else basket.push({ ...selectedProduct, qty: 1 });
 
     saveBasket();
-    if (basketPanel) basketPanel.hidden = false;
+    basketPanel.hidden = false;
     renderBasket();
   };
 }
 
-// -------------------- RENDER LOOP --------------------
+/* -------------------- RENDER LOOP -------------------- */
 function onResize() {
-  if (!renderer || !camera || !sceneHost) return;
+  if (!renderer || !camera) return;
   const w = sceneHost.clientWidth;
   const h = sceneHost.clientHeight;
   camera.aspect = w / h;
@@ -524,56 +805,50 @@ function onResize() {
   renderer.setSize(w, h);
 }
 
-let _loopRunning = false;
+window.addEventListener("resize", onResize);
+
+// temp vectors (safe + precreated)
+const _tmpLook = new THREE.Vector3();
 
 function animate() {
-  // render guard (prevents multi-loops)
-  if (!_loopRunning) _loopRunning = true;
+  requestAnimationFrame(animate);
+  if (!renderer || !scene || !camera) return;
 
-  try {
-    if (!renderer || !scene || !camera) return;
+  const t = performance.now() * 0.001;
 
-    const t = performance.now() * 0.001;
+  // Smooth camera tween
+  if (camTween) {
+    const now = performance.now();
+    const u = Math.min(1, (now - camTween.t0) / camTween.dur);
+    const e = easeInOutCubic(u);
 
-    // Camera rails
-    if (camMoving && camTargetPos && camTargetLook) {
-      camera.position.lerp(camTargetPos, 0.06);
+    camera.position.lerpVectors(camTween.fromPos, camTween.toPos, e);
+    _tmpLook.lerpVectors(camTween.fromLook, camTween.toLook, e);
+    camera.lookAt(_tmpLook);
 
-      camera.getWorldDirection(_tmpForward);
-      _tmpLookPoint.copy(camera.position).add(_tmpForward);
-      _tmpLookPoint.lerp(camTargetLook, 0.06);
-      camera.lookAt(_tmpLookPoint);
-
-      if (camera.position.distanceTo(camTargetPos) < 0.05) camMoving = false;
-    }
-
-    // Campfire animation
-    scene.traverse((o) => {
-      if (o.userData?.fire) {
-        const { flame, fireLight } = o.userData.fire;
-        flame.scale.y = 0.92 + Math.sin(t * 7) * 0.14;
-        flame.rotation.y = t * 0.85;
-        fireLight.intensity = 2.2 + Math.sin(t * 9) * 0.35;
-      }
-    });
-
-    // Products idle
-    productMeshes.forEach((m, i) => {
-      m.rotation.y = t * 0.6 + i * 0.25;
-      m.position.y = 1.58 + Math.sin(t * 1.6 + i) * 0.03;
-    });
-
-    renderer.render(scene, camera);
-  } catch (err) {
-    console.error("Animation loop stopped:", err);
-    _loopRunning = false;
-    return; // STOP looping on error
+    if (u >= 1) camTween = null;
   }
 
-  // schedule next frame ONLY after successful frame
-  requestAnimationFrame(animate);
+  // Campfire flicker
+  scene.traverse((o) => {
+    if (o.userData?.fire) {
+      const { flame, fireLight } = o.userData.fire;
+      flame.scale.y = 0.92 + Math.sin(t * 7) * 0.14;
+      flame.rotation.y = t * 0.85;
+      fireLight.intensity = 2.0 + Math.sin(t * 9) * 0.35;
+    }
+    if (o.userData?.torch) {
+      o.userData.torch.light.intensity = 1.05 + Math.sin(t * 10 + o.position.x) * 0.18;
+    }
+  });
+
+  // Product idle animation
+  productMeshes.forEach((m, i) => {
+    m.rotation.y = t * 0.6 + i * 0.25;
+    m.position.y = 1.58 + Math.sin(t * 1.6 + i) * 0.03;
+  });
+
+  renderer.render(scene, camera);
 }
 
 onResize();
-window.addEventListener("resize", onResize);
-animate();
