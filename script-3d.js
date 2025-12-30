@@ -336,6 +336,98 @@ addAnimals();
   sceneHost.innerHTML = "";
   sceneHost.appendChild(renderer.domElement);
 
+   let _stars, _clouds=[], _fireflies=[], _animals=[];
+function addStars(){
+  const count = 1400;
+  const geo = new THREE.BufferGeometry();
+  const pos = new Float32Array(count*3);
+  for(let i=0;i<count;i++){
+    const r = 90 + Math.random()*120;
+    const a = Math.random()*Math.PI*2;
+    const y = 18 + Math.random()*55;
+    pos[i*3+0] = Math.cos(a)*r + (Math.random()*10-5);
+    pos[i*3+1] = y;
+    pos[i*3+2] = Math.sin(a)*r + (Math.random()*10-5);
+  }
+  geo.setAttribute("position", new THREE.BufferAttribute(pos,3));
+  const mat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.12, transparent:true, opacity:0.85 });
+  _stars = new THREE.Points(geo, mat);
+  scene.add(_stars);
+}
+
+function cloudTexture(){
+  return makeCanvasTexture((ctx,s)=>{
+    ctx.clearRect(0,0,s,s);
+    ctx.fillStyle="rgba(0,0,0,0)";
+    for(let i=0;i<70;i++){
+      const x=Math.random()*s, y=Math.random()*s;
+      const r=40+Math.random()*110;
+      const g=ctx.createRadialGradient(x,y,0,x,y,r);
+      g.addColorStop(0,"rgba(255,255,255,0.16)");
+      g.addColorStop(1,"rgba(255,255,255,0)");
+      ctx.fillStyle=g;
+      ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill();
+    }
+  },512);
+}
+
+function addClouds(){
+  const tex = cloudTexture();
+  const mat = new THREE.MeshStandardMaterial({
+    map: tex,
+    transparent:true,
+    opacity:0.55,
+    depthWrite:false,
+    roughness:1.0,
+    metalness:0
+  });
+  for(let i=0;i<10;i++){
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(22, 12), mat.clone());
+    m.position.set(-40 + Math.random()*80, 16 + Math.random()*10, -40 + Math.random()*80);
+    m.rotation.y = Math.random()*Math.PI*2;
+    m.userData = { vx: 0.2 + Math.random()*0.25 };
+    _clouds.push(m);
+    scene.add(m);
+  }
+}
+
+function addFireflies(){
+  const geo = new THREE.BufferGeometry();
+  const count = 140;
+  const pos = new Float32Array(count*3);
+  for(let i=0;i<count;i++){
+    pos[i*3+0] = (Math.random()*18-9);
+    pos[i*3+1] = 0.6 + Math.random()*2.2;
+    pos[i*3+2] = (Math.random()*18-9);
+  }
+  geo.setAttribute("position", new THREE.BufferAttribute(pos,3));
+  const mat = new THREE.PointsMaterial({ color: 0x9bffcf, size: 0.10, transparent:true, opacity:0.85 });
+  const pts = new THREE.Points(geo, mat);
+  pts.userData = { base: pos };
+  _fireflies.push(pts);
+  scene.add(pts);
+}
+
+function addAnimals(){
+  // Simple small “rabbits/foxes” as moving spheres (placeholder)
+  const mat1 = new THREE.MeshStandardMaterial({ color: 0x2a1f14, roughness: 1.0 });
+  const mat2 = new THREE.MeshStandardMaterial({ color: 0x101625, roughness: 1.0 });
+
+  for(let i=0;i<6;i++){
+    const a = new THREE.Mesh(new THREE.SphereGeometry(0.18, 10, 10), (i%2?mat1:mat2));
+    a.position.set(Math.random()*22-11, 0.18, Math.random()*22-11);
+    a.userData = {
+      t: Math.random()*10,
+      speed: 0.25 + Math.random()*0.25,
+      radius: 3.5 + Math.random()*7.5,
+      center: new THREE.Vector3(Math.random()*10-5, 0, Math.random()*10-5)
+    };
+    _animals.push(a);
+    scene.add(a);
+  }
+}
+
+
   // ---------- LIGHTING ----------
   // Base ambient
   scene.add(new THREE.AmbientLight(0xffffff, 0.35));
