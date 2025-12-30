@@ -205,3 +205,90 @@ body{
   margin: 10px 0;
   display:block;
 }
+
+/* Home button bottom-center glow (if your #btnHome exists) */
+#btnHome{
+  position: fixed;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  z-index: 50;
+  box-shadow: 0 0 18px rgba(122,162,255,.35);
+}
+
+/* Hover tooltip */
+.hoverTip{
+  position: fixed;
+  z-index: 60;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(10,14,25,.92);
+  border: 1px solid rgba(122,162,255,.35);
+  color: rgba(255,255,255,.92);
+  font: 600 12px/1.2 Inter, system-ui, sans-serif;
+  pointer-events: none;
+  max-width: 260px;
+  box-shadow: 0 10px 30px rgba(0,0,0,.35);
+}
+
+/* Fullscreen book */
+.bookModal{
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  background: radial-gradient(1200px 600px at 50% 20%, rgba(122,162,255,.14), rgba(0,0,0,.92));
+  display: grid;
+  place-items: center;
+  padding: 20px;
+}
+.bookClose{
+  position: fixed;
+  left: 18px;
+  top: 18px;
+  z-index: 81;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(155,255,207,.25);
+  background: rgba(10,14,25,.75);
+  color: rgba(255,255,255,.9);
+  cursor: pointer;
+}
+.bookShell{
+  width: min(980px, 96vw);
+  height: min(640px, 86vh);
+  border-radius: 22px;
+  border: 1px solid rgba(122,162,255,.25);
+  background: rgba(12,16,28,.75);
+  box-shadow: 0 20px 80px rgba(0,0,0,.55);
+  padding: 18px;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: 14px;
+}
+.bookHeader{
+  display:flex;
+  justify-content: space-between;
+  align-items:flex-end;
+  gap: 12px;
+}
+.bookTitle{ font: 800 18px/1.1 Inter, system-ui, sans-serif; color: rgba(255,255,255,.92); }
+.bookMeta{ font: 600 12px/1.1 Inter, system-ui, sans-serif; color: rgba(255,255,255,.6); }
+.bookPages{
+  display:grid;
+  place-items:center;
+}
+.bookPage{
+  width: min(860px, 92vw);
+  height: min(460px, 60vh);
+  border-radius: 18px;
+  background: linear-gradient(90deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
+  border: 1px solid rgba(255,255,255,.08);
+  padding: 18px 22px;
+  overflow:auto;
+  color: rgba(255,255,255,.86);
+}
+.bookControls{
+  display:flex;
+  justify-content: center;
+  gap: 10px;
+}
