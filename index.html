@@ -18,8 +18,7 @@
   </head>
 
  <body>
-  <div class="bg-noise"></div>
-
+  <!-- Top bar -->
   <header class="topbar">
     <div class="wrap topbar-inner">
       <div class="brand">
@@ -28,106 +27,62 @@
       </div>
 
       <nav class="nav">
-        <a href="#shop">Shop</a>
-        <a href="#about">About</a>
-        <a href="#events">Events</a>
+        <button class="navbtn" data-route="home">Home</button>
+        <button class="navbtn" data-route="shop">Shop</button>
       </nav>
-
-      <button class="icon-btn" id="cartBtn" aria-label="Open cart">
-        <span class="icon">🛒</span>
-        <span class="pill" id="cartCount">0</span>
-      </button>
     </div>
   </header>
 
-  <main class="wrap">
-    <section class="hero">
-      <div class="hero-left">
-        <h1 class="hero-title">Handmade pieces. Clean drops. Smooth flow.</h1>
-        <p class="hero-sub">
-          This is a demo storefront UI: animated cards, modal product view, and a cart drawer.
-          (No illegal content, no shady stuff — just the aesthetic + interaction.)
-        </p>
-        <div class="hero-actions">
-          <a class="btn primary" href="#shop">Browse</a>
-          <button class="btn ghost" id="randomBtn">Random pick</button>
-        </div>
-      </div>
+  <!-- Views (SPA-style: we swap these without page reload) -->
+  <main class="app">
+    <!-- HOME VIEW -->
+    <section id="view-home" class="view is-active">
+      <div class="wrap">
+        <div class="hero">
+          <h1 class="hero-title">PyroShop</h1>
+          <p class="hero-sub">
+            Click <strong>Shop</strong> to enter a real 3D environment (Three.js).
+            Smooth transitions, camera motion, and interactive products next.
+          </p>
 
-      <div class="hero-right">
-        <div class="stat">
-          <div class="stat-num" id="statProducts">12</div>
-          <div class="stat-label">Items</div>
-        </div>
-        <div class="stat">
-          <div class="stat-num">24h</div>
-          <div class="stat-label">New drops</div>
-        </div>
-        <div class="stat">
-          <div class="stat-num">★ 4.9</div>
-          <div class="stat-label">Rated</div>
+          <div class="hero-actions">
+            <button class="btn primary" data-route="shop">Enter 3D Shop</button>
+          </div>
         </div>
       </div>
     </section>
 
-    <section id="shop" class="section">
-      <div class="section-head">
-        <h2>Shop</h2>
-        <input id="search" class="search" placeholder="Search items..." />
+    <!-- SHOP VIEW (3D) -->
+    <section id="view-shop" class="view">
+      <!-- 3D canvas fills the screen -->
+      <div id="scene"></div>
+
+      <!-- UI overlay on top of the 3D scene -->
+      <div class="hud">
+        <div class="hud-left">
+          <div class="chip">3D Shop</div>
+          <div class="muted tiny">Drag to look • Scroll to zoom • Click cubes (products)</div>
+        </div>
+        <div class="hud-right">
+          <button class="btn ghost" data-route="home">Exit</button>
+        </div>
       </div>
 
-      <div class="grid" id="productGrid"></div>
-    </section>
-
-    <section id="about" class="section">
-      <h2>About</h2>
-      <p class="muted">
-        Add your autobiography later. This build focuses on UI flow: hover states, modals, cart drawer, and smooth motion.
-      </p>
-    </section>
-
-    <section id="events" class="section">
-      <h2>Events</h2>
-      <p class="muted">Later: add drops, markets, dates, locations, ticket links, etc.</p>
+      <!-- Product info panel (appears when you click a product cube) -->
+      <div class="product-panel" id="productPanel" hidden>
+        <div class="product-panel-inner">
+          <div>
+            <div class="muted tiny">Selected</div>
+            <div class="product-title" id="productTitle">Product</div>
+            <div class="muted" id="productDesc">Description</div>
+          </div>
+          <button class="btn ghost" id="closePanel">Close</button>
+        </div>
+      </div>
     </section>
   </main>
 
-  <!-- Product modal -->
-  <div class="modal" id="modal" aria-hidden="true">
-    <div class="modal-backdrop" id="modalBackdrop"></div>
-    <div class="modal-card" role="dialog" aria-modal="true">
-      <button class="icon-btn close" id="closeModal" aria-label="Close">✕</button>
-      <div class="modal-body">
-        <div class="modal-media" id="modalMedia"></div>
-        <div class="modal-info">
-          <h3 id="modalTitle"></h3>
-          <p class="muted" id="modalDesc"></p>
-          <div class="price-row">
-            <span class="price" id="modalPrice"></span>
-            <button class="btn primary" id="addToCartBtn">Add to cart</button>
-          </div>
-          <p class="tiny muted">Demo cart only (local, no checkout).</p>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Cart drawer -->
-  <aside class="drawer" id="drawer" aria-hidden="true">
-    <div class="drawer-head">
-      <h3>Your cart</h3>
-      <button class="icon-btn close" id="closeDrawer" aria-label="Close">✕</button>
-    </div>
-    <div class="drawer-body" id="cartItems"></div>
-    <div class="drawer-foot">
-      <div class="total">
-        <span class="muted">Subtotal</span>
-        <span id="subtotal">£0.00</span>
-      </div>
-      <button class="btn ghost" id="clearCart">Clear</button>
-    </div>
-  </aside>
-
-  <script src="script.js"></script>
+  <!-- IMPORTANT: script.js must be a module so we can import Three.js -->
+  <script type="module" src="script.js"></script>
 </body>
 </html>
