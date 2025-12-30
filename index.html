@@ -5,41 +5,23 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>PyroShop World</title>
 
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap"
       rel="stylesheet"
-    >
-    <link rel="stylesheet" href="./style.css">
-    <link rel="icon" href="data:,">
+    />
+    <link rel="stylesheet" href="./style.css" />
+    <link rel="icon" href="data:," />
   </head>
-  <body>
-    <!-- Book Viewer (fullscreen) -->
-    <div id="bookModal" class="bookModal" hidden>
-      <button id="bookClose" class="bookClose" aria-label="Close book">← Back</button>
-  <div class="bookShell">
-        <div class="bookShell">
-        <div class="bookHeader">
-          <div id="bookTitle" class="bookTitle">Book Title</div>
-          <div id="bookMeta" class="bookMeta">Date</div>
-        </div>
-    <div class="bookPages">
-           <div class="bookPages">
-          <div id="bookPage" class="bookPage">
-            <div id="bookPageText"></div>
-          </div>
-        </div>
-    <div class="bookControls">
-        <div class="bookControls">
-          <button id="bookPrev" class="btn ghost">← Prev</button>
-          <button id="bookNext" class="btn ghost">Next →</button>
-        </div>
-      </div>
+
   <body>
     <!-- 3D WORLD -->
     <div id="scene"></div>
+
+    <!-- Hover tooltip -->
     <div id="hoverTip" class="hoverTip" hidden></div>
+
     <!-- HUD -->
     <header class="hud">
       <div class="hud-left">
@@ -52,13 +34,38 @@
       </div>
     </header>
 
+    <!-- Book Viewer (fullscreen) -->
+    <div id="bookModal" class="bookModal" hidden>
+      <button id="bookClose" class="bookClose" aria-label="Close book">← Back</button>
+
+      <div class="bookShell">
+        <div class="bookHeader">
+          <div id="bookTitle" class="bookTitle">Book Title</div>
+          <div id="bookMeta" class="bookMeta">Date</div>
+        </div>
+
+        <div class="bookPages">
+          <div id="bookPage" class="bookPage">
+            <div id="bookPageText"></div>
+          </div>
+        </div>
+
+        <div class="bookControls">
+          <button id="bookPrev" class="btn ghost">← Prev</button>
+          <button id="bookNext" class="btn ghost">Next →</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Product panel -->
     <div class="product-panel" id="productPanel" hidden>
       <div class="product-panel-inner">
         <div class="product-left">
           <div class="muted tiny">Selected item</div>
           <div class="product-title" id="productTitle">Product</div>
+
           <img id="productImg" alt="Product image" />
+
           <div class="muted" id="productDesc">Description</div>
           <div class="muted tiny" id="productPrice">£0.00</div>
 
