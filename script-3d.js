@@ -534,6 +534,37 @@ function addLogBenches() {
 }
 
 /* -------------------- SHOP: CABIN -------------------- */
+function neonTextTexture(text, accent="#7aa2ff"){
+  return makeCanvasTexture((ctx, s) => {
+    ctx.fillStyle = "rgba(0,0,0,0)";
+    ctx.clearRect(0,0,s,s);
+
+    // backing plate
+    ctx.fillStyle = "rgba(11,16,32,0.85)";
+    ctx.fillRect(0,0,s,s);
+
+    // glow border
+    ctx.strokeStyle = "rgba(122,162,255,0.45)";
+    ctx.lineWidth = 14;
+    ctx.strokeRect(18,18,s-36,s-36);
+
+    // neon text
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.font = "900 96px Inter, system-ui, sans-serif";
+
+    // glow passes
+    ctx.fillStyle = accent;
+    for(let i=0;i<6;i++){
+      ctx.globalAlpha = 0.12;
+      ctx.fillText(text, s/2, s/2);
+    }
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = "rgba(255,255,255,0.92)";
+    ctx.fillText(text, s/2, s/2);
+  }, 512);
+}
+
 function createCabin() {
   const g = new THREE.Group();
 
@@ -542,23 +573,103 @@ function createCabin() {
 
   const roof = new THREE.MeshStandardMaterial({ color: 0x151a2a, roughness: 0.95 });
 
-  const base = new THREE.Mesh(new THREE.BoxGeometry(5.6, 2.9, 4.4), wood);
-  base.position.set(0, 1.45, 0);
-  g.add(base);
+  // --- LOG CABIN BODY (open front) ---
+  // We'll build 3 walls (back + left + right) + roof. No front wall.
+  const wallThickness = 0.35;
+  const W = 6.0, H = 3.2, D = 4.6;
 
-  const roofMesh = new THREE.Mesh(new THREE.ConeGeometry(3.95, 2.35, 4), roof);
+  // back wall
+  const back = new THREE.Mesh(new THREE.BoxGeometry(W, H, wallThickness), wood);
+  back.position.set(0, H/2, -D/2);
+  g.add(back);
+
+  // left wall
+  const left = new THREE.Mesh(new THREE.BoxGeometry(wallThickness, H, D), wood);
+  left.position.set(-W/2, H/2, 0);
+  g.add(left);
+
+  // right wall
+  const right = new THREE.Mesh(new THREE.BoxGeometry(wallThickness, H, D), wood);
+  right.position.set(W/2, H/2, 0);
+  g.add(right);
+
+  // roof
+  const roofMesh = new THREE.Mesh(new THREE.ConeGeometry(4.2, 2.6, 4), roof);
   roofMesh.rotation.y = Math.PI / 4;
-  roofMesh.position.set(0, 3.45, 0);
+  roofMesh.position.set(0, H + 1.0, 0);
   g.add(roofMesh);
 
-  const doorMat = new THREE.MeshStandardMaterial({
-    color: 0x0b1020,
-    emissive: 0x7aa2ff,
-    emissiveIntensity: 0.35
+  // floor inside
+  const floor = new THREE.Mesh(
+    new THREE.PlaneGeometry(W-0.3, D-0.3),
+    new THREE.MeshStandardMaterial({ color: 0x0b0f1a, roughness: 1.0 })
+  );
+  floor.rotation.x = -Math.PI/2;
+  floor.position.set(0, 0.02, 0);
+  g.add(floor);
+
+  // --- INTERIOR SHELVES (3 walls) ---
+  const shelfMat = new THREE.MeshStandardMaterial({ color: 0x141a2a, roughness: 0.85 });
+
+  function addShelvesOnWall(which){
+    for(let r=0;r<3;r++){
+      const shelf = new THREE.Mesh(new THREE.BoxGeometry(4.8, 0.18, 0.75), shelfMat);
+      shelf.position.set(0, 1.0 + r*0.85, -1.7);
+      g.add(shelf);
+    }
+  }
+
+  // Back wall shelves (Woodwork)
+  addShelvesOnWall("back");
+
+  // Left wall shelves
+  for(let r=0;r<3;r++){
+    const shelf = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.18, 0.75), shelfMat);
+    shelf.rotation.y = Math.PI/2;
+    shelf.position.set(-2.2, 1.0 + r*0.85, 0);
+    g.add(shelf);
+  }
+
+  // Right wall shelves
+  for(let r=0;r<3;r++){
+    const shelf = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.18, 0.75), shelfMat);
+    shelf.rotation.y = -Math.PI/2;
+    shelf.position.set(2.2, 1.0 + r*0.85, 0);
+    g.add(shelf);
+  }
+
+  // --- CATEGORY NEON SIGNS (one per wall) ---
+  function neonSign(text, accent, pos, rotY){
+    const tex = neonTextTexture(text, accent);
+    const mat = new THREE.MeshStandardMaterial({
+      map: tex,
+      emissive: new THREE.Color(accent),
+      emissiveIntensity: 0.55,
+      roughness: 0.4,
+      transparent: true
+    });
+    const plane = new THREE.Mesh(new THREE.PlaneGeometry(2.3, 0.9), mat);
+    plane.position.copy(pos);
+    plane.rotation.y = rotY;
+    g.add(plane);
+  }
+
+  neonSign("WOODWORK", "#7aa2ff", new THREE.Vector3(0, 2.85, -2.05), 0);
+  neonSign("BITS & BOBS", "#9bffcf", new THREE.Vector3(-2.05, 2.85, 0), Math.PI/2);
+  neonSign("BONECRAFT", "#ffb86b", new THREE.Vector3(2.05, 2.85, 0), -Math.PI/2);
+
+  // label above cabin “SHOP”
+  const shopTex = neonTextTexture("SHOP", "#7aa2ff");
+  const shopMat = new THREE.MeshStandardMaterial({
+    map: shopTex, emissive: 0x7aa2ff, emissiveIntensity: 0.65, transparent: true
   });
-  const door = new THREE.Mesh(new THREE.PlaneGeometry(1.35, 2.1), doorMat);
-  door.position.set(0, 1.25, 2.21);
-  g.add(door);
+  const shopLabel = new THREE.Mesh(new THREE.PlaneGeometry(2.2, 0.85), shopMat);
+  shopLabel.position.set(0, 3.9, 2.25);
+  shopLabel.rotation.y = Math.PI; // face outward
+  g.add(shopLabel);
+
+  // Make whole cabin clickable (travel)
+  g.userData = { type:"building", zone:"shop" };
 
   return g;
 }
