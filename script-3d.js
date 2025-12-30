@@ -1,61 +1,5 @@
 import * as THREE from "https://esm.sh/three@0.160.0";
 
-/*
-  1 + A IMPLEMENTED:
-  - Start in 3D immediately (route = shop)
-  - Camera is LOCKED (no OrbitControls, no user rotate/zoom)
-  - Preset camera rails (lobby -> shop) with smooth movement
-  - Products are simple 3D boxes on shelves
-  - Click product -> panel opens
-  - Add to basket -> basket panel opens
-*/
-
-// -------------------- CAMERA RAILS (LOCKED MOVEMENT) --------------------
-let camTargetPos = null;
-let camTargetLook = null;
-let camMoving = false;
-
-const CAMERA_POINTS = {
-  // First-person-ish height
-  lobby: {
-    pos: new THREE.Vector3(0, 1.7, 8),
-    look: new THREE.Vector3(0, 1.6, 0),
-  },
-  shop: {
-    pos: new THREE.Vector3(0, 1.7, 4),
-    look: new THREE.Vector3(0, 1.6, -6),
-  },
-};
-
-function moveCameraTo(pointName) {
-  const p = CAMERA_POINTS[pointName];
-  if (!p) return;
-
-  camTargetPos = p.pos.clone();
-  camTargetLook = p.look.clone();
-  camMoving = true;
-}
-
-// -------------------- ROUTING (HOME / SHOP) --------------------
-const views = {
-  home: document.getElementById("view-home"),
-  shop: document.getElementById("view-shop"),
-};
-
-function setRoute(route) {
-  Object.values(views).forEach((v) => v && v.classList.remove("is-active"));
-  views[route]?.classList.add("is-active");
-
-  // Lazy-load the 3D scene when you first enter Shop
-  if (route === "shop") init3DOnce();
-}
-
-document.addEventListener("click", (e) => {
-  const btn = e.target.closest("[data-route]");
-  if (!btn) return;
-  setRoute(btn.dataset.route);
-});
-
 // -------------------- BASKET (LOCAL STORAGE) --------------------
 const basket = JSON.parse(localStorage.getItem("basket") || "[]");
 
@@ -63,8 +7,8 @@ const btnBasket = document.getElementById("btnBasket");
 const basketPanel = document.getElementById("basketPanel");
 const basketItems = document.getElementById("basketItems");
 const basketTotal = document.getElementById("basketTotal");
-
 const closeBasketBtn = document.getElementById("closeBasket");
+
 if (closeBasketBtn) closeBasketBtn.onclick = () => (basketPanel.hidden = true);
 
 if (btnBasket) {
@@ -133,17 +77,13 @@ const panel = document.getElementById("productPanel");
 const titleEl = document.getElementById("productTitle");
 const descEl = document.getElementById("productDesc");
 const priceEl = document.getElementById("productPrice");
-
 const closePanelBtn = document.getElementById("closePanel");
-if (closePanelBtn) {
-  closePanelBtn.addEventListener("click", () => {
-    panel.hidden = true;
-  });
-}
+const addBtn = document.getElementById("addToBasket");
+
+if (closePanelBtn) closePanelBtn.onclick = () => (panel.hidden = true);
 
 let selectedProduct = null;
 
-const addBtn = document.getElementById("addToBasket");
 if (addBtn) {
   addBtn.onclick = () => {
     if (!selectedProduct) return;
@@ -158,10 +98,32 @@ if (addBtn) {
   };
 }
 
-// -------------------- 3D SCENE --------------------
-let started = false;
-let renderer, scene, camera, raycaster, mouse;
+// -------------------- CAMERA RAILS (LOCKED) --------------------
+let camTargetPos = null;
+let camTargetLook = null;
+let camMoving = false;
 
+const CAMERA_POINTS = {
+  lobby: {
+    pos: new THREE.Vector3(0, 1.7, 8),
+    look: new THREE.Vector3(0, 1.6, 0),
+  },
+  shop: {
+    pos: new THREE.Vector3(0, 1.7, 4),
+    look: new THREE.Vector3(0, 1.6, -6),
+  },
+};
+
+function moveCameraTo(pointName) {
+  const p = CAMERA_POINTS[pointName];
+  if (!p) return;
+  camTargetPos = p.pos.clone();
+  camTargetLook = p.look.clone();
+  camMoving = true;
+}
+
+// -------------------- 3D SCENE --------------------
+let renderer, scene, camera, raycaster, mouse;
 const productMeshes = [];
 const sceneHost = document.getElementById("scene");
 
@@ -173,10 +135,9 @@ const products = [
   { id: "p5", name: "Custom Sigil Block", desc: "Commission block — your design, your vibe.", price: 45 },
 ];
 
-function init3DOnce() {
-  if (started) return;
-  started = true;
+init3D(); // start in 3D immediately
 
+function init3D() {
   scene = new THREE.Scene();
   scene.fog = new THREE.Fog(0x07090f, 6, 22);
 
@@ -187,7 +148,6 @@ function init3DOnce() {
     200
   );
 
-  // Start position (will immediately rail to lobby target)
   camera.position.set(0, 1.7, 9);
   camera.lookAt(0, 1.6, 0);
 
@@ -245,7 +205,7 @@ function init3DOnce() {
     scene.add(shelf);
   }
 
-  // Products (simple boxes)
+  // Products
   const baseMat = new THREE.MeshStandardMaterial({
     color: 0x7aa2ff,
     roughness: 0.35,
@@ -256,24 +216,21 @@ function init3DOnce() {
   products.forEach((p, idx) => {
     const box = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.8, 0.8), baseMat.clone());
     const col = idx % 5;
-
     box.position.set(-4 + col * 2, 1.6, -6);
     box.userData = p;
-
     scene.add(box);
     productMeshes.push(box);
   });
 
-  // Interaction (click products only)
   raycaster = new THREE.Raycaster();
   mouse = new THREE.Vector2();
 
   renderer.domElement.addEventListener("pointerdown", onPointerDown);
   window.addEventListener("resize", onResize);
 
-  // Start in lobby, then “walk” to shop (temporary test trigger)
+  // Start in lobby then move to shop (temporary “walk” test)
   moveCameraTo("lobby");
-  setTimeout(() => moveCameraTo("shop"), 1200);
+  setTimeout(() => moveCameraTo("shop"), 900);
 
   animate();
 }
@@ -295,30 +252,20 @@ function onPointerDown(ev) {
   mouse.y = -(((ev.clientY - rect.top) / rect.height) * 2 - 1);
 
   raycaster.setFromCamera(mouse, camera);
-
-  // Only products clickable for now
   const hits = raycaster.intersectObjects(productMeshes, false);
   if (!hits.length) return;
 
   const picked = hits[0].object;
   const data = picked.userData;
 
-  // Visual feedback
   productMeshes.forEach((m) => m.material.emissive.setHex(0x0b1020));
   picked.material.emissive.setHex(0x203060);
 
-  // Update panel
   if (titleEl) titleEl.textContent = data.name;
   if (descEl) descEl.textContent = data.desc;
   if (priceEl) priceEl.textContent = money(data.price);
 
-  selectedProduct = {
-    id: data.id,
-    name: data.name,
-    desc: data.desc,
-    price: data.price,
-  };
-
+  selectedProduct = { id: data.id, name: data.name, desc: data.desc, price: data.price };
   if (panel) panel.hidden = false;
 }
 
@@ -326,11 +273,10 @@ function animate() {
   requestAnimationFrame(animate);
   if (!renderer || !scene || !camera) return;
 
-  // --- Smooth camera rails movement ---
+  // Smooth camera rails
   if (camMoving && camTargetPos && camTargetLook) {
     camera.position.lerp(camTargetPos, 0.06);
 
-    // Smooth lookAt by lerping a look point
     const forward = new THREE.Vector3();
     camera.getWorldDirection(forward);
     const currentLookPoint = camera.position.clone().add(forward);
@@ -338,12 +284,10 @@ function animate() {
     currentLookPoint.lerp(camTargetLook, 0.06);
     camera.lookAt(currentLookPoint);
 
-    if (camera.position.distanceTo(camTargetPos) < 0.05) {
-      camMoving = false;
-    }
+    if (camera.position.distanceTo(camTargetPos) < 0.05) camMoving = false;
   }
 
-  // --- Product idle animation ---
+  // Product idle animation
   const t = performance.now() * 0.001;
   productMeshes.forEach((m, i) => {
     m.rotation.y = t * 0.4 + i * 0.15;
@@ -352,7 +296,3 @@ function animate() {
 
   renderer.render(scene, camera);
 }
-
-// -------------------- START IN 3D IMMEDIATELY --------------------
-// This makes the site start in the 3D environment (Shop view) from the start.
-setRoute("shop");
