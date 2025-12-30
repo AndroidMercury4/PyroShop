@@ -1,4 +1,4 @@
-import * as THREE from "https://esm.sh/three@0.160.0";
+import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js";
 
 /* ============================================================
    PYROSHOP WORLD v2 (FIXED)
