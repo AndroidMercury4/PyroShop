@@ -323,6 +323,12 @@ function init3D() {
   camera.position.copy(CAMERA_POINTS.home.pos);
   camera.lookAt(CAMERA_POINTS.home.look);
 
+   addStars();
+addClouds();
+addFireflies();
+addAnimals();
+
+
   renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.setSize(sceneHost.clientWidth, sceneHost.clientHeight);
