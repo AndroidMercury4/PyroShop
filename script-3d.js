@@ -1,12 +1,14 @@
 import * as THREE from "https://esm.sh/three@0.160.0";
 
-/* ------------------------------------------------------------
-  PYROSHOP WORLD (PLACEHOLDER VERSION)
-  - Starts at HOME (campfire)
-  - Around you: Shop (cabin), Blog (library), About (plinth)
-  - Click in-world signs to ride camera rails (locked)
-  - Click product cubes in Shop for details + Add to basket
--------------------------------------------------------------*/
+/* ============================================================
+   PYROSHOP WORLD (Option B: Styled placeholders)
+   - Single 3D world from start (no page routing)
+   - Home hub with campfire
+   - Shop (cabin) left, Blog (library) right, About forward
+   - In-world signs to travel (locked camera rails)
+   - Products in Shop -> panel -> Add to basket
+   - Basket overlay works (localStorage)
+============================================================ */
 
 // -------------------- DOM --------------------
 const zoneLabel = document.getElementById("zoneLabel");
@@ -102,36 +104,38 @@ let currentZone = "home";
 const CAMERA_POINTS = {
   home: {
     label: "Home",
-    pos: new THREE.Vector3(0, 1.7, 8),
-    look: new THREE.Vector3(0, 1.4, 0),
+    pos: new THREE.Vector3(0, 1.75, 9.5),
+    look: new THREE.Vector3(0, 1.3, 0),
   },
   shop: {
-    label: "Shop (Cabin)",
-    pos: new THREE.Vector3(-10, 1.7, 6),
-    look: new THREE.Vector3(-10, 1.4, 0),
+    label: "Shop",
+    pos: new THREE.Vector3(-12.2, 1.75, 7.4),
+    look: new THREE.Vector3(-10, 1.2, 0),
   },
   blog: {
-    label: "Blog (Library)",
-    pos: new THREE.Vector3(10, 1.7, 6),
-    look: new THREE.Vector3(10, 1.4, 0),
+    label: "Blog",
+    pos: new THREE.Vector3(12.2, 1.75, 7.4),
+    look: new THREE.Vector3(10, 1.2, 0),
   },
   about: {
     label: "About",
-    pos: new THREE.Vector3(0, 1.7, -8),
-    look: new THREE.Vector3(0, 1.4, -14),
+    pos: new THREE.Vector3(0, 1.75, -7.8),
+    look: new THREE.Vector3(0, 1.25, -14),
   },
 };
 
 function moveCameraTo(zoneName) {
   const p = CAMERA_POINTS[zoneName];
   if (!p) return;
+
   camTargetPos = p.pos.clone();
   camTargetLook = p.look.clone();
   camMoving = true;
   currentZone = zoneName;
+
   if (zoneLabel) zoneLabel.textContent = p.label;
 
-  // Hide panels when traveling
+  // Hide overlays while moving (clean feel)
   if (panel) panel.hidden = true;
   if (basketPanel) basketPanel.hidden = true;
 }
@@ -142,11 +146,11 @@ if (btnHome) btnHome.onclick = () => moveCameraTo("home");
 const sceneHost = document.getElementById("scene");
 let renderer, scene, camera, raycaster, mouse;
 
-const interactables = [];      // signs + products
-const productMeshes = [];      // only products
+const interactables = []; // signs + products
+const productMeshes = []; // only products
 let selectedProduct = null;
 
-// Placeholder product data (shop zone)
+// Products shown in shop
 const products = [
   { id: "p1", name: "Oak Rune Token", desc: "Hand-finished oak token with carved symbol.", price: 18, img: "WOODCRAFT_01" },
   { id: "p2", name: "Walnut Mini Totem", desc: "Small walnut carving, matte oil finish.", price: 25, img: "WOODCRAFT_02" },
@@ -159,67 +163,78 @@ init3D();
 
 function init3D() {
   scene = new THREE.Scene();
-  scene.fog = new THREE.Fog(0x07090f, 8, 40);
+  scene.fog = new THREE.Fog(0x07090f, 10, 55);
 
-  camera = new THREE.PerspectiveCamera(60, sceneHost.clientWidth / sceneHost.clientHeight, 0.1, 200);
-  camera.position.copy(CAMERA_POINTS.home.pos.clone().add(new THREE.Vector3(0, 0, 1)));
+  camera = new THREE.PerspectiveCamera(60, sceneHost.clientWidth / sceneHost.clientHeight, 0.1, 220);
+  camera.position.copy(CAMERA_POINTS.home.pos);
   camera.lookAt(CAMERA_POINTS.home.look);
 
   renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.setSize(sceneHost.clientWidth, sceneHost.clientHeight);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
+  sceneHost.innerHTML = "";
   sceneHost.appendChild(renderer.domElement);
 
   // Lighting
   scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+
   const key = new THREE.DirectionalLight(0x7aa2ff, 1.0);
-  key.position.set(6, 8, 4);
+  key.position.set(7, 10, 6);
   scene.add(key);
 
   const rim = new THREE.DirectionalLight(0x9bffcf, 0.7);
-  rim.position.set(-8, 6, -3);
+  rim.position.set(-10, 7, -3);
   scene.add(rim);
 
   // Ground
   const ground = new THREE.Mesh(
-    new THREE.PlaneGeometry(200, 200),
-    new THREE.MeshStandardMaterial({ color: 0x0b0f1a, roughness: 0.95, metalness: 0.0 })
+    new THREE.PlaneGeometry(250, 250),
+    new THREE.MeshStandardMaterial({ color: 0x0b0f1a, roughness: 0.98, metalness: 0.0 })
   );
   ground.rotation.x = -Math.PI / 2;
   ground.position.y = 0;
   scene.add(ground);
 
-  // Soft “path” stones (placeholder)
-  addPathStones();
+  // Subtle “mist” glow plane
+  const glow = new THREE.Mesh(
+    new THREE.CircleGeometry(55, 64),
+    new THREE.MeshStandardMaterial({ color: 0x0b1020, emissive: 0x0b1020, emissiveIntensity: 0.25, transparent: true, opacity: 0.6 })
+  );
+  glow.rotation.x = -Math.PI / 2;
+  glow.position.y = 0.01;
+  scene.add(glow);
 
-  // HOME: campfire placeholder
+  // Paths
+  addPathArc();
+
+  // HOME
   const campfire = createCampfire();
   campfire.position.set(0, 0, 0);
   scene.add(campfire);
 
-  // SHOP: cabin placeholder
+  // SHOP (left)
   const cabin = createCabin();
   cabin.position.set(-10, 0, 0);
   scene.add(cabin);
 
-  // BLOG: library placeholder
+  // BLOG (right)
   const library = createLibrary();
   library.position.set(10, 0, 0);
   scene.add(library);
 
-  // ABOUT: plinth placeholder
+  // ABOUT (forward)
   const about = createAboutPlinth();
   about.position.set(0, 0, -14);
   scene.add(about);
 
-  // In-world signs (clickable)
-  addSign("SHOP", "shop", new THREE.Vector3(-6, 0, 3));
-  addSign("BLOG", "blog", new THREE.Vector3(6, 0, 3));
-  addSign("ABOUT", "about", new THREE.Vector3(0, 0, -6));
-  addSign("HOME", "home", new THREE.Vector3(0, 0, 5)); // optional
+  // Signs (in-world nav)
+  addSign("SHOP", "shop", new THREE.Vector3(-5.2, 0, 3.8));
+  addSign("BLOG", "blog", new THREE.Vector3(5.2, 0, 3.8));
+  addSign("ABOUT", "about", new THREE.Vector3(0, 0, -5.8));
+  addSign("HOME", "home", new THREE.Vector3(0, 0, 5.4));
 
-  // Shop products (placed near cabin)
+  // Shop products
   addShopProducts();
 
   // Interaction
@@ -234,19 +249,34 @@ function init3D() {
   animate();
 }
 
-// -------------------- WORLD BUILDERS (PLACEHOLDERS) --------------------
-function addPathStones() {
+function addPathArc() {
   const stoneMat = new THREE.MeshStandardMaterial({ color: 0x101625, roughness: 1.0 });
-  for (let i = 0; i < 20; i++) {
-    const s = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.45, 0.08, 10), stoneMat);
-    s.position.set(
-      (Math.sin(i * 0.55) * 2.2),
-      0.04,
-      6 - i * 0.7
-    );
-    s.rotation.y = i * 0.25;
+  const points = [
+    new THREE.Vector3(0, 0, 4),
+    new THREE.Vector3(-3, 0, 3),
+    new THREE.Vector3(-6, 0, 2),
+    new THREE.Vector3(-9, 0, 1),
+    new THREE.Vector3(-10, 0, 0),
+
+    new THREE.Vector3(0, 0, 4),
+    new THREE.Vector3(3, 0, 3),
+    new THREE.Vector3(6, 0, 2),
+    new THREE.Vector3(9, 0, 1),
+    new THREE.Vector3(10, 0, 0),
+
+    new THREE.Vector3(0, 0, 2),
+    new THREE.Vector3(0, 0, -2),
+    new THREE.Vector3(0, 0, -6),
+    new THREE.Vector3(0, 0, -10),
+    new THREE.Vector3(0, 0, -14),
+  ];
+
+  points.forEach((p, i) => {
+    const s = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.48, 0.09, 10), stoneMat);
+    s.position.set(p.x + (Math.sin(i) * 0.08), 0.045, p.z + (Math.cos(i) * 0.08));
+    s.rotation.y = i * 0.35;
     scene.add(s);
-  }
+  });
 }
 
 function createCampfire() {
@@ -255,7 +285,7 @@ function createCampfire() {
   // logs
   const logMat = new THREE.MeshStandardMaterial({ color: 0x2a1f14, roughness: 1.0 });
   for (let i = 0; i < 3; i++) {
-    const log = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 1.2, 12), logMat);
+    const log = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 1.25, 12), logMat);
     log.rotation.z = Math.PI / 2;
     log.rotation.y = i * (Math.PI / 3);
     log.position.set(0, 0.12, 0);
@@ -267,23 +297,23 @@ function createCampfire() {
   for (let i = 0; i < 10; i++) {
     const stone = new THREE.Mesh(new THREE.DodecahedronGeometry(0.18, 0), stoneMat);
     const a = (i / 10) * Math.PI * 2;
-    stone.position.set(Math.cos(a) * 0.8, 0.12, Math.sin(a) * 0.8);
+    stone.position.set(Math.cos(a) * 0.85, 0.12, Math.sin(a) * 0.85);
     g.add(stone);
   }
 
-  // flame (placeholder) + point light animation
+  // flame + light
   const flameMat = new THREE.MeshStandardMaterial({
     color: 0xffaa55,
     emissive: 0xff6611,
     emissiveIntensity: 1.0,
     roughness: 0.6
   });
-  const flame = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.6, 10), flameMat);
-  flame.position.set(0, 0.55, 0);
+  const flame = new THREE.Mesh(new THREE.ConeGeometry(0.24, 0.7, 10), flameMat);
+  flame.position.set(0, 0.62, 0);
   g.add(flame);
 
-  const fireLight = new THREE.PointLight(0xff8844, 2.2, 12);
-  fireLight.position.set(0, 1.0, 0);
+  const fireLight = new THREE.PointLight(0xff8844, 2.3, 14);
+  fireLight.position.set(0, 1.05, 0);
   g.add(fireLight);
 
   g.userData.fire = { flame, fireLight };
@@ -293,54 +323,55 @@ function createCampfire() {
 function createCabin() {
   const g = new THREE.Group();
 
-  const wood = new THREE.MeshStandardMaterial({ color: 0x2b2a2f, roughness: 0.9 });
+  const wood = new THREE.MeshStandardMaterial({ color: 0x2b2a2f, roughness: 0.92 });
   const roof = new THREE.MeshStandardMaterial({ color: 0x151a2a, roughness: 0.9 });
 
-  const base = new THREE.Mesh(new THREE.BoxGeometry(5.4, 2.8, 4.2), wood);
-  base.position.set(0, 1.4, 0);
+  const base = new THREE.Mesh(new THREE.BoxGeometry(5.6, 2.9, 4.4), wood);
+  base.position.set(0, 1.45, 0);
   g.add(base);
 
-  const roofMesh = new THREE.Mesh(new THREE.ConeGeometry(3.8, 2.2, 4), roof);
+  const roofMesh = new THREE.Mesh(new THREE.ConeGeometry(3.95, 2.35, 4), roof);
   roofMesh.rotation.y = Math.PI / 4;
-  roofMesh.position.set(0, 3.3, 0);
+  roofMesh.position.set(0, 3.45, 0);
   g.add(roofMesh);
 
-  // door glow (placeholder “open shop” vibe)
-  const doorMat = new THREE.MeshStandardMaterial({ color: 0x0b1020, emissive: 0x7aa2ff, emissiveIntensity: 0.4 });
-  const door = new THREE.Mesh(new THREE.PlaneGeometry(1.3, 2.0), doorMat);
-  door.position.set(0, 1.2, 2.11);
+  // door glow
+  const doorMat = new THREE.MeshStandardMaterial({
+    color: 0x0b1020,
+    emissive: 0x7aa2ff,
+    emissiveIntensity: 0.45
+  });
+  const door = new THREE.Mesh(new THREE.PlaneGeometry(1.35, 2.1), doorMat);
+  door.position.set(0, 1.25, 2.21);
   g.add(door);
 
-  g.userData = { type: "cabin" };
   return g;
 }
 
 function createLibrary() {
   const g = new THREE.Group();
 
-  const wall = new THREE.MeshStandardMaterial({ color: 0x0f1424, roughness: 0.95 });
-  const shelf = new THREE.MeshStandardMaterial({ color: 0x151a2a, roughness: 0.85 });
+  const wall = new THREE.MeshStandardMaterial({ color: 0x0f1424, roughness: 0.96 });
+  const shelf = new THREE.MeshStandardMaterial({ color: 0x151a2a, roughness: 0.86 });
 
-  const back = new THREE.Mesh(new THREE.BoxGeometry(6.0, 4.0, 1.0), wall);
-  back.position.set(0, 2.0, 0);
+  const back = new THREE.Mesh(new THREE.BoxGeometry(6.3, 4.2, 1.05), wall);
+  back.position.set(0, 2.1, 0);
   g.add(back);
 
-  // shelves + “books”
   for (let r = 0; r < 4; r++) {
-    const plank = new THREE.Mesh(new THREE.BoxGeometry(5.6, 0.12, 0.8), shelf);
-    plank.position.set(0, 0.8 + r * 0.85, 0.1);
+    const plank = new THREE.Mesh(new THREE.BoxGeometry(5.9, 0.12, 0.82), shelf);
+    plank.position.set(0, 0.85 + r * 0.9, 0.12);
     g.add(plank);
 
     for (let i = 0; i < 10; i++) {
       const book = new THREE.Mesh(
-        new THREE.BoxGeometry(0.35, 0.55 + (i % 3) * 0.06, 0.18),
+        new THREE.BoxGeometry(0.36, 0.58 + (i % 3) * 0.06, 0.18),
         new THREE.MeshStandardMaterial({ color: 0x7aa2ff, roughness: 0.7, metalness: 0.05, emissive: 0x0b1020 })
       );
-      book.position.set(-2.4 + i * 0.55, 1.05 + r * 0.85, 0.35);
+      book.position.set(-2.55 + i * 0.57, 1.08 + r * 0.9, 0.38);
       g.add(book);
     }
   }
-
   return g;
 }
 
@@ -348,52 +379,52 @@ function createAboutPlinth() {
   const g = new THREE.Group();
   const mat = new THREE.MeshStandardMaterial({ color: 0x101625, roughness: 1.0 });
 
-  const base = new THREE.Mesh(new THREE.CylinderGeometry(2.2, 2.4, 0.5, 24), mat);
-  base.position.set(0, 0.25, 0);
+  const base = new THREE.Mesh(new THREE.CylinderGeometry(2.25, 2.45, 0.55, 24), mat);
+  base.position.set(0, 0.275, 0);
   g.add(base);
 
-  const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 1.0, 2.4, 18), mat);
-  pillar.position.set(0, 1.7, 0);
+  const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.82, 1.02, 2.5, 18), mat);
+  pillar.position.set(0, 1.8, 0);
   g.add(pillar);
 
   const plaque = new THREE.Mesh(
-    new THREE.PlaneGeometry(2.2, 1.0),
-    new THREE.MeshStandardMaterial({ color: 0x0b1020, emissive: 0x9bffcf, emissiveIntensity: 0.25 })
+    new THREE.PlaneGeometry(2.25, 1.05),
+    new THREE.MeshStandardMaterial({ color: 0x0b1020, emissive: 0x9bffcf, emissiveIntensity: 0.28 })
   );
-  plaque.position.set(0, 1.7, 1.05);
+  plaque.position.set(0, 1.8, 1.08);
   g.add(plaque);
 
   return g;
 }
 
-// Clickable sign (simple billboard)
 function addSign(text, zoneName, position) {
   const sign = new THREE.Mesh(
-    new THREE.BoxGeometry(2.2, 1.1, 0.15),
+    new THREE.BoxGeometry(2.3, 1.12, 0.16),
     new THREE.MeshStandardMaterial({ color: 0x0b1020, roughness: 0.6, metalness: 0.1, emissive: 0x0b1020 })
   );
-  sign.position.copy(position).add(new THREE.Vector3(0, 1.35, 0));
+  sign.position.copy(position).add(new THREE.Vector3(0, 1.38, 0));
   sign.userData = { type: "sign", zone: zoneName, label: text };
 
-  // “post”
   const post = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.08, 0.08, 1.35, 10),
+    new THREE.CylinderGeometry(0.085, 0.085, 1.38, 10),
     new THREE.MeshStandardMaterial({ color: 0x151a2a, roughness: 0.9 })
   );
-  post.position.copy(position).add(new THREE.Vector3(0, 0.7, 0));
+  post.position.copy(position).add(new THREE.Vector3(0, 0.72, 0));
 
   scene.add(sign);
   scene.add(post);
+
   interactables.push(sign);
 }
 
 function addShopProducts() {
-  const shelfMat = new THREE.MeshStandardMaterial({ color: 0x141a2a, roughness: 0.7 });
-  // simple shelf near cabin
-  const shelf = new THREE.Mesh(new THREE.BoxGeometry(7.0, 0.22, 1.2), shelfMat);
-  shelf.position.set(-10, 1.05, 2.6);
+  // shelf near cabin
+  const shelfMat = new THREE.MeshStandardMaterial({ color: 0x141a2a, roughness: 0.75 });
+  const shelf = new THREE.Mesh(new THREE.BoxGeometry(7.2, 0.22, 1.25), shelfMat);
+  shelf.position.set(-10, 1.05, 2.85);
   scene.add(shelf);
 
+  // products
   const baseMat = new THREE.MeshStandardMaterial({
     color: 0x7aa2ff,
     roughness: 0.35,
@@ -402,10 +433,11 @@ function addShopProducts() {
   });
 
   products.forEach((p, idx) => {
-    const box = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.7, 0.7), baseMat.clone());
-    box.position.set(-12.5 + idx * 1.2, 1.55, 2.6);
+    const box = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.72, 0.72), baseMat.clone());
+    box.position.set(-12.8 + idx * 1.25, 1.58, 2.85);
     box.userData = { type: "product", ...p };
     scene.add(box);
+
     productMeshes.push(box);
     interactables.push(box);
   });
@@ -420,20 +452,17 @@ function onPointerDown(ev) {
   mouse.y = -(((ev.clientY - rect.top) / rect.height) * 2 - 1);
 
   raycaster.setFromCamera(mouse, camera);
-
   const hits = raycaster.intersectObjects(interactables, false);
   if (!hits.length) return;
 
   const obj = hits[0].object;
   const data = obj.userData || {};
 
-  // Click sign -> travel
   if (data.type === "sign") {
     moveCameraTo(data.zone);
     return;
   }
 
-  // Click product -> open panel
   if (data.type === "product") {
     productMeshes.forEach((m) => m.material.emissive.setHex(0x0b1020));
     obj.material.emissive.setHex(0x203060);
@@ -445,7 +474,6 @@ function onPointerDown(ev) {
 
     selectedProduct = { id: data.id, name: data.name, desc: data.desc, price: data.price };
     if (panel) panel.hidden = false;
-    return;
   }
 }
 
@@ -481,6 +509,8 @@ function animate() {
   requestAnimationFrame(animate);
   if (!renderer || !scene || !camera) return;
 
+  const t = performance.now() * 0.001;
+
   // Camera rails
   if (camMoving && camTargetPos && camTargetLook) {
     camera.position.lerp(camTargetPos, 0.06);
@@ -494,21 +524,19 @@ function animate() {
   }
 
   // Campfire animation
-  // Find campfire group by scanning (simple, OK for placeholder)
-  const t = performance.now() * 0.001;
   scene.traverse((o) => {
     if (o.userData?.fire) {
       const { flame, fireLight } = o.userData.fire;
-      flame.scale.y = 0.9 + Math.sin(t * 7) * 0.12;
-      flame.rotation.y = t * 0.8;
-      fireLight.intensity = 2.0 + Math.sin(t * 9) * 0.35;
+      flame.scale.y = 0.92 + Math.sin(t * 7) * 0.14;
+      flame.rotation.y = t * 0.85;
+      fireLight.intensity = 2.2 + Math.sin(t * 9) * 0.35;
     }
   });
 
   // Products idle
   productMeshes.forEach((m, i) => {
     m.rotation.y = t * 0.6 + i * 0.25;
-    m.position.y = 1.55 + Math.sin(t * 1.6 + i) * 0.03;
+    m.position.y = 1.58 + Math.sin(t * 1.6 + i) * 0.03;
   });
 
   renderer.render(scene, camera);
