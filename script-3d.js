@@ -90,6 +90,7 @@ function renderBasket() {
 
 if (btnBasket) {
   btnBasket.onclick = () => {
+    if (!basketPanel) return;
     basketPanel.hidden = false;
     renderBasket();
   };
@@ -159,9 +160,18 @@ const products = [
   { id: "p5", name: "Custom Sigil Block", desc: "Commission block — your design, your vibe.", price: 45, img: "CUSTOM_SIGIL" },
 ];
 
+// temp vectors MUST exist before animate runs
+const _tmpForward = new THREE.Vector3();
+const _tmpLookPoint = new THREE.Vector3();
+
 init3D();
 
 function init3D() {
+  if (!sceneHost) {
+    console.error("Missing #scene element in HTML.");
+    return;
+  }
+
   scene = new THREE.Scene();
   scene.fog = new THREE.Fog(0x07090f, 10, 55);
 
@@ -173,6 +183,7 @@ function init3D() {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.setSize(sceneHost.clientWidth, sceneHost.clientHeight);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
+
   sceneHost.innerHTML = "";
   sceneHost.appendChild(renderer.domElement);
 
@@ -199,7 +210,13 @@ function init3D() {
   // Subtle “mist” glow plane
   const glow = new THREE.Mesh(
     new THREE.CircleGeometry(55, 64),
-    new THREE.MeshStandardMaterial({ color: 0x0b1020, emissive: 0x0b1020, emissiveIntensity: 0.25, transparent: true, opacity: 0.6 })
+    new THREE.MeshStandardMaterial({
+      color: 0x0b1020,
+      emissive: 0x0b1020,
+      emissiveIntensity: 0.25,
+      transparent: true,
+      opacity: 0.6
+    })
   );
   glow.rotation.x = -Math.PI / 2;
   glow.position.y = 0.01;
@@ -246,6 +263,7 @@ function init3D() {
   // Start at home
   moveCameraTo("home");
 
+  // Start loop
   animate();
 }
 
@@ -366,7 +384,12 @@ function createLibrary() {
     for (let i = 0; i < 10; i++) {
       const book = new THREE.Mesh(
         new THREE.BoxGeometry(0.36, 0.58 + (i % 3) * 0.06, 0.18),
-        new THREE.MeshStandardMaterial({ color: 0x7aa2ff, roughness: 0.7, metalness: 0.05, emissive: 0x0b1020 })
+        new THREE.MeshStandardMaterial({
+          color: 0x7aa2ff,
+          roughness: 0.7,
+          metalness: 0.05,
+          emissive: 0x0b1020
+        })
       );
       book.position.set(-2.55 + i * 0.57, 1.08 + r * 0.9, 0.38);
       g.add(book);
@@ -445,7 +468,7 @@ function addShopProducts() {
 
 // -------------------- INPUT --------------------
 function onPointerDown(ev) {
-  if (!renderer || !camera) return;
+  if (!renderer || !camera || !raycaster || !mouse) return;
 
   const rect = renderer.domElement.getBoundingClientRect();
   mouse.x = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
@@ -487,14 +510,14 @@ if (addBtn) {
     else basket.push({ ...selectedProduct, qty: 1 });
 
     saveBasket();
-    basketPanel.hidden = false;
+    if (basketPanel) basketPanel.hidden = false;
     renderBasket();
   };
 }
 
 // -------------------- RENDER LOOP --------------------
 function onResize() {
-  if (!renderer || !camera) return;
+  if (!renderer || !camera || !sceneHost) return;
   const w = sceneHost.clientWidth;
   const h = sceneHost.clientHeight;
   camera.aspect = w / h;
@@ -502,44 +525,54 @@ function onResize() {
   renderer.setSize(w, h);
 }
 
-let _tmpForward = new THREE.Vector3();
-let _tmpLookPoint = new THREE.Vector3();
+let _loopRunning = false;
 
 function animate() {
-  requestAnimationFrame(animate);
-  if (!renderer || !scene || !camera) return;
+  // render guard (prevents multi-loops)
+  if (!_loopRunning) _loopRunning = true;
 
-  const t = performance.now() * 0.001;
+  try {
+    if (!renderer || !scene || !camera) return;
 
-  // Camera rails
-  if (camMoving && camTargetPos && camTargetLook) {
-    camera.position.lerp(camTargetPos, 0.06);
+    const t = performance.now() * 0.001;
 
-    camera.getWorldDirection(_tmpForward);
-    _tmpLookPoint.copy(camera.position).add(_tmpForward);
-    _tmpLookPoint.lerp(camTargetLook, 0.06);
-    camera.lookAt(_tmpLookPoint);
+    // Camera rails
+    if (camMoving && camTargetPos && camTargetLook) {
+      camera.position.lerp(camTargetPos, 0.06);
 
-    if (camera.position.distanceTo(camTargetPos) < 0.05) camMoving = false;
+      camera.getWorldDirection(_tmpForward);
+      _tmpLookPoint.copy(camera.position).add(_tmpForward);
+      _tmpLookPoint.lerp(camTargetLook, 0.06);
+      camera.lookAt(_tmpLookPoint);
+
+      if (camera.position.distanceTo(camTargetPos) < 0.05) camMoving = false;
+    }
+
+    // Campfire animation
+    scene.traverse((o) => {
+      if (o.userData?.fire) {
+        const { flame, fireLight } = o.userData.fire;
+        flame.scale.y = 0.92 + Math.sin(t * 7) * 0.14;
+        flame.rotation.y = t * 0.85;
+        fireLight.intensity = 2.2 + Math.sin(t * 9) * 0.35;
+      }
+    });
+
+    // Products idle
+    productMeshes.forEach((m, i) => {
+      m.rotation.y = t * 0.6 + i * 0.25;
+      m.position.y = 1.58 + Math.sin(t * 1.6 + i) * 0.03;
+    });
+
+    renderer.render(scene, camera);
+  } catch (err) {
+    console.error("Animation loop stopped:", err);
+    _loopRunning = false;
+    return; // STOP looping on error
   }
 
-  // Campfire animation
-  scene.traverse((o) => {
-    if (o.userData?.fire) {
-      const { flame, fireLight } = o.userData.fire;
-      flame.scale.y = 0.92 + Math.sin(t * 7) * 0.14;
-      flame.rotation.y = t * 0.85;
-      fireLight.intensity = 2.2 + Math.sin(t * 9) * 0.35;
-    }
-  });
-
-  // Products idle
-  productMeshes.forEach((m, i) => {
-    m.rotation.y = t * 0.6 + i * 0.25;
-    m.position.y = 1.58 + Math.sin(t * 1.6 + i) * 0.03;
-  });
-
-  renderer.render(scene, camera);
+  // schedule next frame ONLY after successful frame
+  requestAnimationFrame(animate);
 }
 
 onResize();
