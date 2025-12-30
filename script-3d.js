@@ -1,14 +1,14 @@
 import * as THREE from "https://esm.sh/three@0.160.0";
-import { OrbitControls } from "https://esm.sh/three@0.160.0/examples/jsm/controls/OrbitControls.js";
 
+// -------------------- ROUTING (HOME / SHOP) --------------------
 const views = {
   home: document.getElementById("view-home"),
   shop: document.getElementById("view-shop"),
 };
 
 function setRoute(route) {
-  Object.values(views).forEach(v => v.classList.remove("is-active"));
-  views[route].classList.add("is-active");
+  Object.values(views).forEach((v) => v.classList.remove("is-active"));
+  views[route]?.classList.add("is-active");
 
   // Lazy-load the 3D scene when you first enter Shop
   if (route === "shop") init3DOnce();
@@ -20,26 +20,121 @@ document.addEventListener("click", (e) => {
   setRoute(btn.dataset.route);
 });
 
-// ---------- 3D SCENE ----------
-let started = false;
-let renderer, scene, camera, controls, raycaster, mouse;
-let productMeshes = [];
-const sceneHost = document.getElementById("scene");
+// -------------------- BASKET (LOCAL STORAGE) --------------------
+const basket = JSON.parse(localStorage.getItem("basket") || "[]");
 
-// UI panel
+const btnBasket = document.getElementById("btnBasket");
+const basketPanel = document.getElementById("basketPanel");
+const basketItems = document.getElementById("basketItems");
+const basketTotal = document.getElementById("basketTotal");
+
+const closeBasketBtn = document.getElementById("closeBasket");
+if (closeBasketBtn) closeBasketBtn.onclick = () => (basketPanel.hidden = true);
+
+if (btnBasket) {
+  btnBasket.onclick = () => {
+    basketPanel.hidden = false;
+    renderBasket();
+  };
+}
+
+function saveBasket() {
+  localStorage.setItem("basket", JSON.stringify(basket));
+}
+
+function money(n) {
+  return `£${Number(n || 0).toFixed(2)}`;
+}
+
+function renderBasket() {
+  if (!basketItems || !basketTotal) return;
+
+  basketItems.innerHTML = "";
+  let total = 0;
+
+  basket.forEach((item, idx) => {
+    total += (item.price || 0) * (item.qty || 0);
+
+    const row = document.createElement("div");
+    row.className = "basket-item";
+    row.innerHTML = `
+      <div>
+        <div style="font-weight:800">${item.name}</div>
+        <div class="muted tiny">${money(item.price)} each</div>
+      </div>
+      <div class="qty">
+        <button class="btn ghost" data-dec="${idx}">−</button>
+        <div>${item.qty}</div>
+        <button class="btn ghost" data-inc="${idx}">+</button>
+      </div>
+    `;
+    basketItems.appendChild(row);
+  });
+
+  basketTotal.textContent = money(total);
+
+  basketItems.querySelectorAll("[data-inc]").forEach((b) => {
+    b.onclick = () => {
+      basket[+b.dataset.inc].qty++;
+      saveBasket();
+      renderBasket();
+    };
+  });
+
+  basketItems.querySelectorAll("[data-dec]").forEach((b) => {
+    b.onclick = () => {
+      const i = +b.dataset.dec;
+      basket[i].qty--;
+      if (basket[i].qty <= 0) basket.splice(i, 1);
+      saveBasket();
+      renderBasket();
+    };
+  });
+}
+
+// -------------------- PRODUCT PANEL UI --------------------
 const panel = document.getElementById("productPanel");
 const titleEl = document.getElementById("productTitle");
 const descEl = document.getElementById("productDesc");
-document.getElementById("closePanel").addEventListener("click", () => {
-  panel.hidden = true;
-});
+const priceEl = document.getElementById("productPrice");
+
+const closePanelBtn = document.getElementById("closePanel");
+if (closePanelBtn) {
+  closePanelBtn.addEventListener("click", () => {
+    panel.hidden = true;
+  });
+}
+
+let selectedProduct = null;
+
+const addBtn = document.getElementById("addToBasket");
+if (addBtn) {
+  addBtn.onclick = () => {
+    if (!selectedProduct) return;
+
+    const existing = basket.find((item) => item.id === selectedProduct.id);
+
+    if (existing) existing.qty++;
+    else basket.push({ ...selectedProduct, qty: 1 });
+
+    saveBasket();
+    basketPanel.hidden = false;
+    renderBasket();
+  };
+}
+
+// -------------------- 3D SCENE --------------------
+let started = false;
+let renderer, scene, camera, raycaster, mouse;
+const productMeshes = [];
+const sceneHost = document.getElementById("scene");
 
 const products = [
-  { id: "p1", name: "Oak Rune Token", desc: "Hand-finished oak token with carved symbol." },
-  { id: "p2", name: "Walnut Mini Totem", desc: "Small walnut carving, matte oil finish." },
-  { id: "p3", name: "Maple Desk Charm", desc: "Minimal charm piece for desk or shelf." },
-  { id: "p4", name: "Ash Key Fob", desc: "Simple key fob, durable and light." },
-  { id: "p5", name: "Custom Sigil Block", desc: "Commission block — your design, your vibe." },
+  { id: "p1", name: "Oak Rune Token", desc: "Hand-finished oak token with carved symbol.", price: 18 },
+  { id: "p2", name: "Walnut Mini Totem", desc: "Small walnut carving, matte oil finish.", price: 25 },
+  { id: "p3", name: "Maple Desk Charm", desc: "Minimal charm piece for desk or shelf.", price: 12 },
+  { id: "p4", name: "Ash Key Fob", desc: "Simple key fob, durable and light.", price: 9 },
+  { id: "p5", name: "Custom Sigil Block", desc: "Commission block — your design, your vibe.", price: 45 },
 ];
 
 function init3DOnce() {
@@ -56,6 +151,7 @@ function init3DOnce() {
     200
   );
   camera.position.set(0, 2.2, 7);
+  camera.lookAt(0, 1.4, -6);
 
   renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -64,8 +160,7 @@ function init3DOnce() {
   sceneHost.appendChild(renderer.domElement);
 
   // Lights
-  const ambient = new THREE.AmbientLight(0xffffff, 0.55);
-  scene.add(ambient);
+  scene.add(new THREE.AmbientLight(0xffffff, 0.55));
 
   const key = new THREE.DirectionalLight(0x7aa2ff, 1.2);
   key.position.set(3, 5, 2);
@@ -76,23 +171,16 @@ function init3DOnce() {
   scene.add(rim);
 
   // Floor
-  const floorGeo = new THREE.PlaneGeometry(30, 30);
-  const floorMat = new THREE.MeshStandardMaterial({
-    color: 0x0b0f1a,
-    roughness: 0.9,
-    metalness: 0.05,
-  });
-  const floor = new THREE.Mesh(floorGeo, floorMat);
+  const floor = new THREE.Mesh(
+    new THREE.PlaneGeometry(30, 30),
+    new THREE.MeshStandardMaterial({ color: 0x0b0f1a, roughness: 0.9, metalness: 0.05 })
+  );
   floor.rotation.x = -Math.PI / 2;
-  floor.position.y = 0;
   scene.add(floor);
 
-  // Walls (simple room)
-  const wallMat = new THREE.MeshStandardMaterial({
-    color: 0x0b1020,
-    roughness: 0.95,
-    metalness: 0.0,
-  });
+  // Walls
+  const wallMat = new THREE.MeshStandardMaterial({ color: 0x0b1020, roughness: 0.95, metalness: 0.0 });
+
   const backWall = new THREE.Mesh(new THREE.PlaneGeometry(30, 10), wallMat);
   backWall.position.set(0, 5, -10);
   scene.add(backWall);
@@ -115,8 +203,8 @@ function init3DOnce() {
     scene.add(shelf);
   }
 
-  // Products as clickable cubes
-  const prodMat = new THREE.MeshStandardMaterial({
+  // Products
+  const baseMat = new THREE.MeshStandardMaterial({
     color: 0x7aa2ff,
     roughness: 0.35,
     metalness: 0.25,
@@ -124,30 +212,21 @@ function init3DOnce() {
   });
 
   products.forEach((p, idx) => {
-    const box = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.8, 0.8), prodMat.clone());
-    const row = Math.floor(idx / 5);
+    const box = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.8, 0.8), baseMat.clone());
     const col = idx % 5;
 
-    box.position.set(-4 + col * 2, 1.0 + row * 1.2 + 0.6, -6);
+    box.position.set(-4 + col * 2, 1.6, -6);
     box.userData = p;
+
     scene.add(box);
     productMeshes.push(box);
   });
 
-  // Controls (drag to look around)
-  controls = new OrbitControls(camera, renderer.domElement);
-  controls.enableDamping = true;
-  controls.dampingFactor = 0.08;
-  controls.minDistance = 3.5;
-  controls.maxDistance = 12;
-  controls.maxPolarAngle = Math.PI / 2.05;
-
-  // Raycasting for clicks
+  // Interaction
   raycaster = new THREE.Raycaster();
   mouse = new THREE.Vector2();
 
   renderer.domElement.addEventListener("pointerdown", onPointerDown);
-
   window.addEventListener("resize", onResize);
 
   animate();
@@ -163,6 +242,8 @@ function onResize() {
 }
 
 function onPointerDown(ev) {
+  if (!renderer || !camera) return;
+
   const rect = renderer.domElement.getBoundingClientRect();
   mouse.x = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
   mouse.y = -(((ev.clientY - rect.top) / rect.height) * 2 - 1);
@@ -174,31 +255,36 @@ function onPointerDown(ev) {
   const picked = hits[0].object;
   const data = picked.userData;
 
-  // simple “selected” feedback
-  productMeshes.forEach(m => (m.material.emissive.setHex(0x0b1020)));
+  // Visual feedback
+  productMeshes.forEach((m) => m.material.emissive.setHex(0x0b1020));
   picked.material.emissive.setHex(0x203060);
 
-  // show UI panel
-  titleEl.textContent = data.name;
-  descEl.textContent = data.desc;
-  panel.hidden = false;
+  // Update panel
+  if (titleEl) titleEl.textContent = data.name;
+  if (descEl) descEl.textContent = data.desc;
+  if (priceEl) priceEl.textContent = money(data.price);
 
-  // smooth camera nudge toward the product
-  const target = picked.position.clone();
-  controls.target.lerp(target, 0.25);
+  selectedProduct = {
+    id: data.id,
+    name: data.name,
+    desc: data.desc,
+    price: data.price,
+  };
+
+  if (panel) panel.hidden = false;
 }
 
 function animate() {
   requestAnimationFrame(animate);
+  if (!renderer || !scene || !camera) return;
 
-  // subtle float on products (nice “alive” feel)
+  // subtle float
   const t = performance.now() * 0.001;
   productMeshes.forEach((m, i) => {
     m.rotation.y = t * 0.5 + i * 0.15;
-    m.position.y += Math.sin(t * 1.4 + i) * 0.0009;
+    m.position.y = 1.6 + Math.sin(t * 1.4 + i) * 0.03;
   });
 
-  controls.update();
   renderer.render(scene, camera);
 }
 
