@@ -1,192 +1,206 @@
+import * as THREE from "https://unpkg.com/three@0.160.0/build/three.module.js";
+import { OrbitControls } from "https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js";
+
+const views = {
+  home: document.getElementById("view-home"),
+  shop: document.getElementById("view-shop"),
+};
+
+function setRoute(route) {
+  Object.values(views).forEach(v => v.classList.remove("is-active"));
+  views[route].classList.add("is-active");
+
+  // Lazy-load the 3D scene when you first enter Shop
+  if (route === "shop") init3DOnce();
+}
+
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest("[data-route]");
+  if (!btn) return;
+  setRoute(btn.dataset.route);
+});
+
+// ---------- 3D SCENE ----------
+let started = false;
+let renderer, scene, camera, controls, raycaster, mouse;
+let productMeshes = [];
+const sceneHost = document.getElementById("scene");
+
+// UI panel
+const panel = document.getElementById("productPanel");
+const titleEl = document.getElementById("productTitle");
+const descEl = document.getElementById("productDesc");
+document.getElementById("closePanel").addEventListener("click", () => {
+  panel.hidden = true;
+});
+
 const products = [
-  { id: "p1", name: "Oak Rune Token", price: 18, desc: "Hand-finished oak token with carved symbol." },
-  { id: "p2", name: "Walnut Mini Totem", price: 32, desc: "Small walnut carving, smooth edges, matte oil." },
-  { id: "p3", name: "Pine Pendant", price: 12, desc: "Lightweight pendant with clean lines and seal." },
-  { id: "p4", name: "Custom Sigil Block", price: 45, desc: "Commission-style block, choose your design." },
-  { id: "p5", name: "Maple Desk Charm", price: 22, desc: "Minimal charm piece for desk or shelf." },
-  { id: "p6", name: "Ash Key Fob", price: 10, desc: "Simple key fob, durable and light." },
+  { id: "p1", name: "Oak Rune Token", desc: "Hand-finished oak token with carved symbol." },
+  { id: "p2", name: "Walnut Mini Totem", desc: "Small walnut carving, matte oil finish." },
+  { id: "p3", name: "Maple Desk Charm", desc: "Minimal charm piece for desk or shelf." },
+  { id: "p4", name: "Ash Key Fob", desc: "Simple key fob, durable and light." },
+  { id: "p5", name: "Custom Sigil Block", desc: "Commission block — your design, your vibe." },
 ];
 
-const grid = document.getElementById("productGrid");
-const search = document.getElementById("search");
+function init3DOnce() {
+  if (started) return;
+  started = true;
 
-const modal = document.getElementById("modal");
-const modalBackdrop = document.getElementById("modalBackdrop");
-const closeModal = document.getElementById("closeModal");
-const modalTitle = document.getElementById("modalTitle");
-const modalDesc = document.getElementById("modalDesc");
-const modalPrice = document.getElementById("modalPrice");
-const addToCartBtn = document.getElementById("addToCartBtn");
-let activeProduct = null;
+  scene = new THREE.Scene();
+  scene.fog = new THREE.Fog(0x07090f, 6, 22);
 
-const drawer = document.getElementById("drawer");
-const cartBtn = document.getElementById("cartBtn");
-const closeDrawer = document.getElementById("closeDrawer");
-const cartItems = document.getElementById("cartItems");
-const subtotalEl = document.getElementById("subtotal");
-const cartCount = document.getElementById("cartCount");
-const clearCart = document.getElementById("clearCart");
-const randomBtn = document.getElementById("randomBtn");
-
-const cart = new Map(); // id -> qty
-
-function money(n) {
-  return `£${n.toFixed(2)}`;
-}
-
-function renderProducts(list) {
-  grid.innerHTML = "";
-  list.forEach((p, i) => {
-    const card = document.createElement("article");
-    card.className = "card";
-    card.style.animationDelay = `${i * 60}ms`;
-
-    card.innerHTML = `
-      <div class="card-top"></div>
-      <div class="card-inner">
-        <h3>${p.name}</h3>
-        <p class="muted">${p.desc}</p>
-        <div class="card-actions">
-          <span class="price">${money(p.price)}</span>
-          <button class="btn ghost" data-view="${p.id}">View</button>
-          <button class="btn primary" data-add="${p.id}">Add</button>
-        </div>
-      </div>
-    `;
-    grid.appendChild(card);
-  });
-}
-
-function openModal(product) {
-  activeProduct = product;
-  modalTitle.textContent = product.name;
-  modalDesc.textContent = product.desc;
-  modalPrice.textContent = money(product.price);
-  modal.classList.add("show");
-  modal.setAttribute("aria-hidden", "false");
-}
-
-function closeModalFn() {
-  modal.classList.remove("show");
-  modal.setAttribute("aria-hidden", "true");
-  activeProduct = null;
-}
-
-function openDrawer() {
-  drawer.classList.add("show");
-  drawer.setAttribute("aria-hidden", "false");
-}
-
-function closeDrawerFn() {
-  drawer.classList.remove("show");
-  drawer.setAttribute("aria-hidden", "true");
-}
-
-function addToCart(id) {
-  cart.set(id, (cart.get(id) || 0) + 1);
-  updateCartUI();
-}
-
-function removeOne(id) {
-  const qty = cart.get(id) || 0;
-  if (qty <= 1) cart.delete(id);
-  else cart.set(id, qty - 1);
-  updateCartUI();
-}
-
-function updateCartUI() {
-  let total = 0;
-  let count = 0;
-
-  cartItems.innerHTML = "";
-
-  for (const [id, qty] of cart.entries()) {
-    const p = products.find(x => x.id === id);
-    if (!p) continue;
-
-    total += p.price * qty;
-    count += qty;
-
-    const row = document.createElement("div");
-    row.className = "cart-item";
-    row.innerHTML = `
-      <div>
-        <div><strong>${p.name}</strong></div>
-        <div class="muted">${money(p.price)} • Qty ${qty}</div>
-      </div>
-      <div style="display:flex; gap:8px; align-items:center;">
-        <button class="icon-btn" data-minus="${id}">−</button>
-        <button class="icon-btn" data-plus="${id}">+</button>
-      </div>
-    `;
-    cartItems.appendChild(row);
-  }
-
-  subtotalEl.textContent = money(total);
-  cartCount.textContent = String(count);
-  if (count === 0) cartItems.innerHTML = `<p class="muted">Cart is empty.</p>`;
-}
-
-grid.addEventListener("click", (e) => {
-  const viewId = e.target?.dataset?.view;
-  const addId = e.target?.dataset?.add;
-
-  if (viewId) {
-    const p = products.find(x => x.id === viewId);
-    if (p) openModal(p);
-  }
-
-  if (addId) {
-    addToCart(addId);
-    openDrawer();
-  }
-});
-
-addToCartBtn.addEventListener("click", () => {
-  if (!activeProduct) return;
-  addToCart(activeProduct.id);
-  closeModalFn();
-  openDrawer();
-});
-
-modalBackdrop.addEventListener("click", closeModalFn);
-closeModal.addEventListener("click", closeModalFn);
-
-cartBtn.addEventListener("click", openDrawer);
-closeDrawer.addEventListener("click", closeDrawerFn);
-
-drawer.addEventListener("click", (e) => {
-  const plus = e.target?.dataset?.plus;
-  const minus = e.target?.dataset?.minus;
-  if (plus) addToCart(plus);
-  if (minus) removeOne(minus);
-});
-
-clearCart.addEventListener("click", () => {
-  cart.clear();
-  updateCartUI();
-});
-
-search.addEventListener("input", () => {
-  const q = search.value.trim().toLowerCase();
-  const filtered = products.filter(p =>
-    p.name.toLowerCase().includes(q) || p.desc.toLowerCase().includes(q)
+  camera = new THREE.PerspectiveCamera(
+    60,
+    sceneHost.clientWidth / sceneHost.clientHeight,
+    0.1,
+    200
   );
-  renderProducts(filtered);
-});
+  camera.position.set(0, 2.2, 7);
 
-randomBtn.addEventListener("click", () => {
-  const p = products[Math.floor(Math.random() * products.length)];
-  openModal(p);
-});
+  renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(sceneHost.clientWidth, sceneHost.clientHeight);
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  sceneHost.appendChild(renderer.domElement);
 
-renderProducts(products);
-updateCartUI();
+  // Lights
+  const ambient = new THREE.AmbientLight(0xffffff, 0.55);
+  scene.add(ambient);
 
-// Keyboard accessibility: ESC closes modal/drawer
-document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape") {
-    closeModalFn();
-    closeDrawerFn();
+  const key = new THREE.DirectionalLight(0x7aa2ff, 1.2);
+  key.position.set(3, 5, 2);
+  scene.add(key);
+
+  const rim = new THREE.DirectionalLight(0x9bffcf, 0.8);
+  rim.position.set(-4, 3, -2);
+  scene.add(rim);
+
+  // Floor
+  const floorGeo = new THREE.PlaneGeometry(30, 30);
+  const floorMat = new THREE.MeshStandardMaterial({
+    color: 0x0b0f1a,
+    roughness: 0.9,
+    metalness: 0.05,
+  });
+  const floor = new THREE.Mesh(floorGeo, floorMat);
+  floor.rotation.x = -Math.PI / 2;
+  floor.position.y = 0;
+  scene.add(floor);
+
+  // Walls (simple room)
+  const wallMat = new THREE.MeshStandardMaterial({
+    color: 0x0b1020,
+    roughness: 0.95,
+    metalness: 0.0,
+  });
+  const backWall = new THREE.Mesh(new THREE.PlaneGeometry(30, 10), wallMat);
+  backWall.position.set(0, 5, -10);
+  scene.add(backWall);
+
+  const leftWall = new THREE.Mesh(new THREE.PlaneGeometry(20, 10), wallMat);
+  leftWall.rotation.y = Math.PI / 2;
+  leftWall.position.set(-10, 5, 0);
+  scene.add(leftWall);
+
+  const rightWall = new THREE.Mesh(new THREE.PlaneGeometry(20, 10), wallMat);
+  rightWall.rotation.y = -Math.PI / 2;
+  rightWall.position.set(10, 5, 0);
+  scene.add(rightWall);
+
+  // Shelves
+  const shelfMat = new THREE.MeshStandardMaterial({ color: 0x141a2a, roughness: 0.7 });
+  for (let i = 0; i < 3; i++) {
+    const shelf = new THREE.Mesh(new THREE.BoxGeometry(12, 0.2, 1.2), shelfMat);
+    shelf.position.set(0, 1.0 + i * 1.2, -6);
+    scene.add(shelf);
   }
-});
+
+  // Products as clickable cubes
+  const prodMat = new THREE.MeshStandardMaterial({
+    color: 0x7aa2ff,
+    roughness: 0.35,
+    metalness: 0.25,
+    emissive: 0x0b1020,
+  });
+
+  products.forEach((p, idx) => {
+    const box = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.8, 0.8), prodMat.clone());
+    const row = Math.floor(idx / 5);
+    const col = idx % 5;
+
+    box.position.set(-4 + col * 2, 1.0 + row * 1.2 + 0.6, -6);
+    box.userData = p;
+    scene.add(box);
+    productMeshes.push(box);
+  });
+
+  // Controls (drag to look around)
+  controls = new OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.08;
+  controls.minDistance = 3.5;
+  controls.maxDistance = 12;
+  controls.maxPolarAngle = Math.PI / 2.05;
+
+  // Raycasting for clicks
+  raycaster = new THREE.Raycaster();
+  mouse = new THREE.Vector2();
+
+  renderer.domElement.addEventListener("pointerdown", onPointerDown);
+
+  window.addEventListener("resize", onResize);
+
+  animate();
+}
+
+function onResize() {
+  if (!renderer || !camera) return;
+  const w = sceneHost.clientWidth;
+  const h = sceneHost.clientHeight;
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+  renderer.setSize(w, h);
+}
+
+function onPointerDown(ev) {
+  const rect = renderer.domElement.getBoundingClientRect();
+  mouse.x = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
+  mouse.y = -(((ev.clientY - rect.top) / rect.height) * 2 - 1);
+
+  raycaster.setFromCamera(mouse, camera);
+  const hits = raycaster.intersectObjects(productMeshes, false);
+  if (!hits.length) return;
+
+  const picked = hits[0].object;
+  const data = picked.userData;
+
+  // simple “selected” feedback
+  productMeshes.forEach(m => (m.material.emissive.setHex(0x0b1020)));
+  picked.material.emissive.setHex(0x203060);
+
+  // show UI panel
+  titleEl.textContent = data.name;
+  descEl.textContent = data.desc;
+  panel.hidden = false;
+
+  // smooth camera nudge toward the product
+  const target = picked.position.clone();
+  controls.target.lerp(target, 0.25);
+}
+
+function animate() {
+  requestAnimationFrame(animate);
+
+  // subtle float on products (nice “alive” feel)
+  const t = performance.now() * 0.001;
+  productMeshes.forEach((m, i) => {
+    m.rotation.y = t * 0.5 + i * 0.15;
+    m.position.y += Math.sin(t * 1.4 + i) * 0.0009;
+  });
+
+  controls.update();
+  renderer.render(scene, camera);
+}
+
+// Start on home
+setRoute("home");
