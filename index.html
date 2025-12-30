@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>PyroShop</title>
 
-    <!-- Google font -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
@@ -13,41 +12,25 @@
       rel="stylesheet"
     >
 
-    <!-- Your CSS -->
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="./style.css">
   </head>
 
- <body>
-  <!-- Top bar -->
-  <header class="topbar">
-    <div class="wrap topbar-inner">
-      <div class="brand">
-        <span class="brand-dot"></span>
-        <span class="brand-name">PyroShop</span>
-      </div>
-
-      <nav class="nav">
-        <button class="navbtn" data-route="home">Home</button>
-        <button class="navbtn" data-route="shop">Shop</button>
-      </nav>
-    </div>
-  </header>
-
-  <!-- Views (SPA-style: we swap these without page reload) -->
-  <main class="app">
-  <section id="view-world" class="view is-active">
+  <body>
+    <!-- 3D WORLD (always visible) -->
     <div id="scene"></div>
 
-    <div class="hud">
+    <!-- HUD overlay -->
+    <header class="hud">
       <div class="hud-left">
         <div class="chip">PyroShop World</div>
-        <div class="muted tiny">Click signs in the world</div>
+        <div class="muted tiny">Click a product cube to view • Basket button for basket</div>
       </div>
       <div class="hud-right">
         <button class="btn ghost" id="btnBasket">Basket</button>
       </div>
-    </div>
+    </header>
 
+    <!-- Product panel -->
     <div class="product-panel" id="productPanel" hidden>
       <div class="product-panel-inner">
         <div>
@@ -56,16 +39,18 @@
           <div class="muted" id="productDesc">Description</div>
           <div class="muted tiny" id="productPrice">£0.00</div>
         </div>
-        <div style="display:flex; gap:10px;">
+
+        <div class="panel-actions">
           <button class="btn primary" id="addToBasket">Add to basket</button>
           <button class="btn ghost" id="closePanel">Close</button>
         </div>
       </div>
     </div>
 
+    <!-- Basket panel -->
     <div class="basket-panel" id="basketPanel" hidden>
       <div class="basket-inner">
-        <div style="display:flex; justify-content:space-between; align-items:center; gap:12px;">
+        <div class="basket-head">
           <div>
             <div class="muted tiny">Your basket</div>
             <div class="product-title">Basket</div>
@@ -77,15 +62,11 @@
 
         <div class="basket-footer">
           <div class="muted">Total: <strong id="basketTotal">£0.00</strong></div>
-          <button class="btn primary" id="checkoutBtn">Checkout</button>
+          <button class="btn primary" id="checkoutBtn" disabled>Checkout (next)</button>
         </div>
       </div>
     </div>
 
-  </section>
-</main>
-
-  <!-- IMPORTANT: script.js must be a module so we can import Three.js -->
-<script type="module" src="./script-3d.js"></script>
-</body>
+    <script type="module" src="./script-3d.js"></script>
+  </body>
 </html>
