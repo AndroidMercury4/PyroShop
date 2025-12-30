@@ -1,5 +1,41 @@
 import * as THREE from "https://esm.sh/three@0.160.0";
 
+/*
+  1 + A IMPLEMENTED:
+  - Start in 3D immediately (route = shop)
+  - Camera is LOCKED (no OrbitControls, no user rotate/zoom)
+  - Preset camera rails (lobby -> shop) with smooth movement
+  - Products are simple 3D boxes on shelves
+  - Click product -> panel opens
+  - Add to basket -> basket panel opens
+*/
+
+// -------------------- CAMERA RAILS (LOCKED MOVEMENT) --------------------
+let camTargetPos = null;
+let camTargetLook = null;
+let camMoving = false;
+
+const CAMERA_POINTS = {
+  // First-person-ish height
+  lobby: {
+    pos: new THREE.Vector3(0, 1.7, 8),
+    look: new THREE.Vector3(0, 1.6, 0),
+  },
+  shop: {
+    pos: new THREE.Vector3(0, 1.7, 4),
+    look: new THREE.Vector3(0, 1.6, -6),
+  },
+};
+
+function moveCameraTo(pointName) {
+  const p = CAMERA_POINTS[pointName];
+  if (!p) return;
+
+  camTargetPos = p.pos.clone();
+  camTargetLook = p.look.clone();
+  camMoving = true;
+}
+
 // -------------------- ROUTING (HOME / SHOP) --------------------
 const views = {
   home: document.getElementById("view-home"),
@@ -7,7 +43,7 @@ const views = {
 };
 
 function setRoute(route) {
-  Object.values(views).forEach((v) => v.classList.remove("is-active"));
+  Object.values(views).forEach((v) => v && v.classList.remove("is-active"));
   views[route]?.classList.add("is-active");
 
   // Lazy-load the 3D scene when you first enter Shop
@@ -113,7 +149,6 @@ if (addBtn) {
     if (!selectedProduct) return;
 
     const existing = basket.find((item) => item.id === selectedProduct.id);
-
     if (existing) existing.qty++;
     else basket.push({ ...selectedProduct, qty: 1 });
 
@@ -126,6 +161,7 @@ if (addBtn) {
 // -------------------- 3D SCENE --------------------
 let started = false;
 let renderer, scene, camera, raycaster, mouse;
+
 const productMeshes = [];
 const sceneHost = document.getElementById("scene");
 
@@ -150,8 +186,10 @@ function init3DOnce() {
     0.1,
     200
   );
-  camera.position.set(0, 2.2, 7);
-  camera.lookAt(0, 1.4, -6);
+
+  // Start position (will immediately rail to lobby target)
+  camera.position.set(0, 1.7, 9);
+  camera.lookAt(0, 1.6, 0);
 
   renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -179,7 +217,11 @@ function init3DOnce() {
   scene.add(floor);
 
   // Walls
-  const wallMat = new THREE.MeshStandardMaterial({ color: 0x0b1020, roughness: 0.95, metalness: 0.0 });
+  const wallMat = new THREE.MeshStandardMaterial({
+    color: 0x0b1020,
+    roughness: 0.95,
+    metalness: 0.0,
+  });
 
   const backWall = new THREE.Mesh(new THREE.PlaneGeometry(30, 10), wallMat);
   backWall.position.set(0, 5, -10);
@@ -203,7 +245,7 @@ function init3DOnce() {
     scene.add(shelf);
   }
 
-  // Products
+  // Products (simple boxes)
   const baseMat = new THREE.MeshStandardMaterial({
     color: 0x7aa2ff,
     roughness: 0.35,
@@ -222,12 +264,16 @@ function init3DOnce() {
     productMeshes.push(box);
   });
 
-  // Interaction
+  // Interaction (click products only)
   raycaster = new THREE.Raycaster();
   mouse = new THREE.Vector2();
 
   renderer.domElement.addEventListener("pointerdown", onPointerDown);
   window.addEventListener("resize", onResize);
+
+  // Start in lobby, then “walk” to shop (temporary test trigger)
+  moveCameraTo("lobby");
+  setTimeout(() => moveCameraTo("shop"), 1200);
 
   animate();
 }
@@ -249,6 +295,8 @@ function onPointerDown(ev) {
   mouse.y = -(((ev.clientY - rect.top) / rect.height) * 2 - 1);
 
   raycaster.setFromCamera(mouse, camera);
+
+  // Only products clickable for now
   const hits = raycaster.intersectObjects(productMeshes, false);
   if (!hits.length) return;
 
@@ -278,15 +326,33 @@ function animate() {
   requestAnimationFrame(animate);
   if (!renderer || !scene || !camera) return;
 
-  // subtle float
+  // --- Smooth camera rails movement ---
+  if (camMoving && camTargetPos && camTargetLook) {
+    camera.position.lerp(camTargetPos, 0.06);
+
+    // Smooth lookAt by lerping a look point
+    const forward = new THREE.Vector3();
+    camera.getWorldDirection(forward);
+    const currentLookPoint = camera.position.clone().add(forward);
+
+    currentLookPoint.lerp(camTargetLook, 0.06);
+    camera.lookAt(currentLookPoint);
+
+    if (camera.position.distanceTo(camTargetPos) < 0.05) {
+      camMoving = false;
+    }
+  }
+
+  // --- Product idle animation ---
   const t = performance.now() * 0.001;
   productMeshes.forEach((m, i) => {
-    m.rotation.y = t * 0.5 + i * 0.15;
+    m.rotation.y = t * 0.4 + i * 0.15;
     m.position.y = 1.6 + Math.sin(t * 1.4 + i) * 0.03;
   });
 
   renderer.render(scene, camera);
 }
 
-// Start on home
-setRoute("home");
+// -------------------- START IN 3D IMMEDIATELY --------------------
+// This makes the site start in the 3D environment (Shop view) from the start.
+setRoute("shop");
