@@ -14,6 +14,29 @@
     <link rel="stylesheet" href="./style.css">
     <link rel="icon" href="data:,">
   </head>
+  
+<!-- Book Viewer (fullscreen) -->
+<div id="bookModal" class="bookModal" hidden>
+  <button id="bookClose" class="bookClose" aria-label="Close book">← Back</button>
+
+  <div class="bookShell">
+    <div class="bookHeader">
+      <div id="bookTitle" class="bookTitle">Book Title</div>
+      <div id="bookMeta" class="bookMeta">Date</div>
+    </div>
+
+    <div class="bookPages">
+      <div id="bookPage" class="bookPage">
+        <div id="bookPageText"></div>
+      </div>
+    </div>
+
+    <div class="bookControls">
+      <button id="bookPrev" class="btn ghost">← Prev</button>
+      <button id="bookNext" class="btn ghost">Next →</button>
+    </div>
+  </div>
+</div>
 
   <body>
     <!-- 3D WORLD -->
