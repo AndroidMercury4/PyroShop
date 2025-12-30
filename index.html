@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>PyroShop</title>
+    <title>PyroShop World</title>
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -16,16 +16,17 @@
   </head>
 
   <body>
-    <!-- 3D WORLD (always visible) -->
+    <!-- 3D WORLD -->
     <div id="scene"></div>
 
-    <!-- HUD overlay -->
+    <!-- HUD -->
     <header class="hud">
       <div class="hud-left">
         <div class="chip">PyroShop World</div>
-        <div class="muted tiny">Click a product cube to view • Basket button for basket</div>
+        <div class="muted tiny" id="zoneLabel">Home</div>
       </div>
       <div class="hud-right">
+        <button class="btn ghost" id="btnHome">Home</button>
         <button class="btn ghost" id="btnBasket">Basket</button>
       </div>
     </header>
@@ -33,11 +34,18 @@
     <!-- Product panel -->
     <div class="product-panel" id="productPanel" hidden>
       <div class="product-panel-inner">
-        <div>
-          <div class="muted tiny">Selected</div>
+        <div class="product-left">
+          <div class="muted tiny">Selected item</div>
           <div class="product-title" id="productTitle">Product</div>
           <div class="muted" id="productDesc">Description</div>
           <div class="muted tiny" id="productPrice">£0.00</div>
+
+          <div class="imgph" id="productImgPH">
+            <div class="imgph-inner">
+              <div class="imgph-tag">Placeholder Image</div>
+              <div class="imgph-name" id="productImgText">WOODCRAFT_01</div>
+            </div>
+          </div>
         </div>
 
         <div class="panel-actions">
