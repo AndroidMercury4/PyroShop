@@ -608,6 +608,11 @@ function createCampfire() {
   return g;
 }
 
+const checkout = createCheckoutKiosk();
+checkout.position.set(2.6, 0, 0.2);
+scene.add(checkout);
+checkout.traverse(o => { if (o.isMesh) interactables.push(o); });
+
 function addLogBenches() {
   const benchMat = new THREE.MeshStandardMaterial({ map: TEX.wood, roughness: 1.0 });
   benchMat.map.repeat.set(2, 1);
@@ -630,6 +635,48 @@ function addLogBenches() {
     scene.add(bench);
   });
 }
+
+const bookModal = document.getElementById("bookModal");
+const bookClose = document.getElementById("bookClose");
+const bookTitle = document.getElementById("bookTitle");
+const bookMeta  = document.getElementById("bookMeta");
+const bookPageText = document.getElementById("bookPageText");
+const bookPrev = document.getElementById("bookPrev");
+const bookNext = document.getElementById("bookNext");
+
+let openBook = null;
+let openBookPage = 0;
+
+function openBookViewer(data){
+  openBook = data;
+  openBookPage = 0;
+
+  if (bookTitle) bookTitle.textContent = data.title;
+  if (bookMeta)  bookMeta.textContent  = data.date;
+  if (bookPageText) bookPageText.textContent = data.pages?.[0] || "";
+
+  if (bookModal) bookModal.hidden = false;
+}
+
+function closeBookViewer(){
+  if (bookModal) bookModal.hidden = true;
+  openBook = null;
+}
+
+if (bookClose) bookClose.onclick = closeBookViewer;
+
+if (bookPrev) bookPrev.onclick = () => {
+  if (!openBook) return;
+  openBookPage = Math.max(0, openBookPage - 1);
+  if (bookPageText) bookPageText.textContent = openBook.pages?.[openBookPage] || "";
+};
+
+if (bookNext) bookNext.onclick = () => {
+  if (!openBook) return;
+  const max = (openBook.pages?.length || 1) - 1;
+  openBookPage = Math.min(max, openBookPage + 1);
+  if (bookPageText) bookPageText.textContent = openBook.pages?.[openBookPage] || "";
+};
 
 /* -------------------- SHOP: CABIN -------------------- */
 function neonTextTexture(text, accent="#7aa2ff"){
@@ -735,6 +782,9 @@ function createCabin() {
     shelf.position.set(2.2, 1.0 + r*0.85, 0);
     g.add(shelf);
   }
+   
+// Make cabin clickable
+cabin.traverse(o => { if (o.isMesh) interactables.push(o); });
 
   // --- CATEGORY NEON SIGNS (one per wall) ---
   function neonSign(text, accent, pos, rotY){
@@ -837,6 +887,9 @@ function createLibrary() {
     shelf.position.set(0, 0.95 + r * 0.9, 0.25);
     g.add(shelf);
   }
+   
+// Make library clickable
+library.traverse(o => { if (o.isMesh) interactables.push(o); });
 
   // Neon label “LIBRARY”
   const libTex = neonTextTexture("LIBRARY", "#9bffcf");
@@ -1015,6 +1068,11 @@ function addWoodlandRing() {
   }
 }
 
+if (data.type === "building") {
+  moveCameraTo(data.zone);
+  return;
+}
+
 /* -------------------- INPUT -------------------- */
 function onPointerDown(ev) {
   if (!renderer || !camera) return;
@@ -1033,6 +1091,16 @@ function onPointerDown(ev) {
   if (data.type === "sign") {
     moveCameraTo(data.zone);
     return;
+     if (data.type === "book") {
+  openBookViewer(data);
+  return;
+}
+if (data.type === "checkout") {
+  if (basketPanel) basketPanel.hidden = false;
+  renderBasket();
+  return;
+}
+
   }
 
   if (data.type === "product") {
@@ -1089,6 +1157,32 @@ function animate() {
 
   const t = performance.now() * 0.001;
 
+   // Clouds drift
+_clouds.forEach(c=>{
+  c.position.x += c.userData.vx * 0.01;
+  if (c.position.x > 60) c.position.x = -60;
+});
+
+// Fireflies wiggle
+_fireflies.forEach(pts=>{
+  const a = pts.geometry.attributes.position;
+  for(let i=0;i<a.count;i++){
+    const ix=i*3;
+    a.array[ix+1] += Math.sin(t*2 + i)*0.0015;
+    a.array[ix+0] += Math.cos(t*1.5 + i)*0.0010;
+  }
+  a.needsUpdate = true;
+});
+
+// Animals wander in circles
+_animals.forEach((an, i)=>{
+  const ud = an.userData;
+  ud.t += 0.008 * ud.speed;
+  an.position.x = ud.center.x + Math.cos(ud.t + i) * ud.radius;
+  an.position.z = ud.center.z + Math.sin(ud.t + i) * ud.radius;
+  an.rotation.y = -(ud.t + i);
+});
+
   // Smooth camera tween
   if (camTween) {
     const now = performance.now();
@@ -1122,6 +1216,64 @@ function animate() {
   });
 
   renderer.render(scene, camera);
+}
+
+const hoverTip = document.getElementById("hoverTip");
+let _lastHover = null;
+
+function onPointerMove(ev){
+  if (!renderer || !camera || !raycaster || !mouse) return;
+
+  const rect = renderer.domElement.getBoundingClientRect();
+  mouse.x = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
+  mouse.y = -(((ev.clientY - rect.top) / rect.height) * 2 - 1);
+
+  raycaster.setFromCamera(mouse, camera);
+  const hits = raycaster.intersectObjects(interactables, false);
+
+  if (!hits.length) {
+    if (hoverTip) hoverTip.hidden = true;
+    _lastHover = null;
+    return;
+  }
+
+  const data = hits[0].object.userData || {};
+  if (data.type !== "book") {
+    if (hoverTip) hoverTip.hidden = true;
+    _lastHover = null;
+    return;
+  }
+
+  // show tooltip
+  if (hoverTip) {
+    hoverTip.hidden = false;
+    hoverTip.textContent = `${data.title} (${data.date})`;
+    hoverTip.style.left = (ev.clientX + 12) + "px";
+    hoverTip.style.top  = (ev.clientY + 12) + "px";
+  }
+  _lastHover = hits[0].object;
+}
+
+function createCheckoutKiosk(){
+  const g = new THREE.Group();
+  const mat = new THREE.MeshStandardMaterial({ color: 0x101625, roughness: 0.9 });
+
+  const base = new THREE.Mesh(new THREE.BoxGeometry(1.8, 1.1, 1.0), mat);
+  base.position.set(0, 0.55, 0);
+  g.add(base);
+
+  const top = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.14, 1.08), new THREE.MeshStandardMaterial({ color: 0x151a2a, roughness: 0.7 }));
+  top.position.set(0, 1.12, 0);
+  g.add(top);
+
+  const tex = neonTextTexture("CHECKOUT", "#ffb86b");
+  const signMat = new THREE.MeshStandardMaterial({ map: tex, emissive: 0xffb86b, emissiveIntensity: 0.65, transparent:true });
+  const sign = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 0.6), signMat);
+  sign.position.set(0, 1.55, 0.55);
+  g.add(sign);
+
+  g.userData = { type:"checkout" };
+  return g;
 }
 
 onResize();
