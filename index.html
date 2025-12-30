@@ -35,52 +35,55 @@
 
   <!-- Views (SPA-style: we swap these without page reload) -->
   <main class="app">
-    <!-- HOME VIEW -->
-    <section id="view-home" class="view is-active">
-      <div class="wrap">
-        <div class="hero">
-          <h1 class="hero-title">PyroShop</h1>
-          <p class="hero-sub">
-            Click <strong>Shop</strong> to enter a real 3D environment (Three.js).
-            Smooth transitions, camera motion, and interactive products next.
-          </p>
+  <section id="view-world" class="view is-active">
+    <div id="scene"></div>
 
-          <div class="hero-actions">
-            <button class="btn primary" data-route="shop">Enter 3D Shop</button>
-          </div>
-        </div>
+    <div class="hud">
+      <div class="hud-left">
+        <div class="chip">PyroShop World</div>
+        <div class="muted tiny">Click signs in the world</div>
       </div>
-    </section>
-
-    <!-- SHOP VIEW (3D) -->
-    <section id="view-shop" class="view">
-      <!-- 3D canvas fills the screen -->
-      <div id="scene"></div>
-
-      <!-- UI overlay on top of the 3D scene -->
-      <div class="hud">
-        <div class="hud-left">
-          <div class="chip">3D Shop</div>
-          <div class="muted tiny">Drag to look • Scroll to zoom • Click cubes (products)</div>
-        </div>
-        <div class="hud-right">
-          <button class="btn ghost" data-route="home">Exit</button>
-        </div>
+      <div class="hud-right">
+        <button class="btn ghost" id="btnBasket">Basket</button>
       </div>
+    </div>
 
-      <!-- Product info panel (appears when you click a product cube) -->
-      <div class="product-panel" id="productPanel" hidden>
-        <div class="product-panel-inner">
-          <div>
-            <div class="muted tiny">Selected</div>
-            <div class="product-title" id="productTitle">Product</div>
-            <div class="muted" id="productDesc">Description</div>
-          </div>
+    <div class="product-panel" id="productPanel" hidden>
+      <div class="product-panel-inner">
+        <div>
+          <div class="muted tiny">Selected</div>
+          <div class="product-title" id="productTitle">Product</div>
+          <div class="muted" id="productDesc">Description</div>
+          <div class="muted tiny" id="productPrice">£0.00</div>
+        </div>
+        <div style="display:flex; gap:10px;">
+          <button class="btn primary" id="addToBasket">Add to basket</button>
           <button class="btn ghost" id="closePanel">Close</button>
         </div>
       </div>
-    </section>
-  </main>
+    </div>
+
+    <div class="basket-panel" id="basketPanel" hidden>
+      <div class="basket-inner">
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:12px;">
+          <div>
+            <div class="muted tiny">Your basket</div>
+            <div class="product-title">Basket</div>
+          </div>
+          <button class="btn ghost" id="closeBasket">Close</button>
+        </div>
+
+        <div id="basketItems" class="basket-items"></div>
+
+        <div class="basket-footer">
+          <div class="muted">Total: <strong id="basketTotal">£0.00</strong></div>
+          <button class="btn primary" id="checkoutBtn">Checkout</button>
+        </div>
+      </div>
+    </div>
+
+  </section>
+</main>
 
   <!-- IMPORTANT: script.js must be a module so we can import Three.js -->
 <script type="module" src="./script-3d.js"></script>
