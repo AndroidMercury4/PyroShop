@@ -1,37 +1,43 @@
 import * as THREE from "https://esm.sh/three@0.160.0";
 
 /* ============================================================
-   PYROSHOP WORLD (fixed)
-   - Click BOX around each place at Home to travel (smooth tween)
-   - Only interact with area items when you are IN that area
-   - Cabin/library travel now works
-   - Book modal is properly hidden until book click
+   PYROSHOP WORLD (Fixed + Zone-gated interactions)
+   - Click hotspots from Home -> camera tween to zone
+   - Only interact within zone AFTER you arrive
+   - Book modal is a real hidden modal (not always visible)
    - Campfire flame + flicker
-   - Removes old early “sign” meshes completely
-   - Checkout (home-right of fire): click to open basket
+   - Stars + moving clouds + fireflies + animals
+   - Old “signs” removed (we use big click-box hotspots)
 ============================================================ */
 
 /* -------------------- DOM -------------------- */
 const zoneLabel = document.getElementById("zoneLabel");
-const hoverTip = document.getElementById("hoverTip");
 
-const btnHome = document.getElementById("btnHome");
-const btnBack = document.getElementById("btnBack");
-const btnBasket = document.getElementById("btnBasket");
-
+// Product panel
 const panel = document.getElementById("productPanel");
 const titleEl = document.getElementById("productTitle");
 const descEl = document.getElementById("productDesc");
 const priceEl = document.getElementById("productPrice");
 const imgEl = document.getElementById("productImg");
 const closePanelBtn = document.getElementById("closePanel");
+if (closePanelBtn) closePanelBtn.onclick = () => (panel.hidden = true);
 const addBtn = document.getElementById("addToBasket");
 
+// Basket
+const basket = JSON.parse(localStorage.getItem("basket") || "[]");
+const btnBasket = document.getElementById("btnBasket");
 const basketPanel = document.getElementById("basketPanel");
 const basketItems = document.getElementById("basketItems");
 const basketTotal = document.getElementById("basketTotal");
 const closeBasketBtn = document.getElementById("closeBasket");
+if (closeBasketBtn) closeBasketBtn.onclick = () => (basketPanel.hidden = true);
+const checkoutBtn = document.getElementById("checkoutBtn");
 
+// Back/Home buttons
+const btnBack = document.getElementById("btnBack");
+const homeGlow = document.getElementById("homeGlow");
+
+// Book modal
 const bookModal = document.getElementById("bookModal");
 const bookClose = document.getElementById("bookClose");
 const bookTitle = document.getElementById("bookTitle");
@@ -40,9 +46,10 @@ const bookPageText = document.getElementById("bookPageText");
 const bookPrev = document.getElementById("bookPrev");
 const bookNext = document.getElementById("bookNext");
 
-/* -------------------- BASKET -------------------- */
-const basket = JSON.parse(localStorage.getItem("basket") || "[]");
+// Hover tip
+const hoverTip = document.getElementById("hoverTip");
 
+/* -------------------- Basket helpers -------------------- */
 function saveBasket() {
   localStorage.setItem("basket", JSON.stringify(basket));
 }
@@ -50,6 +57,7 @@ function money(n) {
   return `£${Number(n || 0).toFixed(2)}`;
 }
 function renderBasket() {
+  if (!basketItems || !basketTotal) return;
   basketItems.innerHTML = "";
   let total = 0;
 
@@ -91,9 +99,18 @@ function renderBasket() {
       renderBasket();
     };
   });
+
+  if (checkoutBtn) checkoutBtn.disabled = basket.length === 0;
 }
 
-/* -------------------- BOOK VIEWER -------------------- */
+if (btnBasket) {
+  btnBasket.onclick = () => {
+    basketPanel.hidden = false;
+    renderBasket();
+  };
+}
+
+/* -------------------- Book viewer -------------------- */
 let openBook = null;
 let openBookPage = 0;
 
@@ -101,35 +118,50 @@ function openBookViewer(data) {
   openBook = data;
   openBookPage = 0;
 
-  bookTitle.textContent = data.title;
-  bookMeta.textContent = data.date;
-  bookPageText.textContent = data.pages?.[0] || "";
+  if (bookTitle) bookTitle.textContent = data.title;
+  if (bookMeta) bookMeta.textContent = data.date;
+  if (bookPageText) bookPageText.textContent = data.pages?.[0] || "";
+  if (bookModal) bookModal.hidden = false;
 
-  bookModal.hidden = false;
+  // hide other overlays
+  if (panel) panel.hidden = true;
+  if (basketPanel) basketPanel.hidden = true;
 }
 function closeBookViewer() {
-  bookModal.hidden = true;
+  if (bookModal) bookModal.hidden = true;
   openBook = null;
 }
-bookClose.onclick = closeBookViewer;
+if (bookClose) bookClose.onclick = closeBookViewer;
 
-bookPrev.onclick = () => {
-  if (!openBook) return;
-  openBookPage = Math.max(0, openBookPage - 1);
-  bookPageText.textContent = openBook.pages?.[openBookPage] || "";
-};
-bookNext.onclick = () => {
-  if (!openBook) return;
-  const max = (openBook.pages?.length || 1) - 1;
-  openBookPage = Math.min(max, openBookPage + 1);
-  bookPageText.textContent = openBook.pages?.[openBookPage] || "";
-};
+if (bookPrev) {
+  bookPrev.onclick = () => {
+    if (!openBook) return;
+    openBookPage = Math.max(0, openBookPage - 1);
+    if (bookPageText) bookPageText.textContent = openBook.pages?.[openBookPage] || "";
+  };
+}
+if (bookNext) {
+  bookNext.onclick = () => {
+    if (!openBook) return;
+    const max = (openBook.pages?.length || 1) - 1;
+    openBookPage = Math.min(max, openBookPage + 1);
+    if (bookPageText) bookPageText.textContent = openBook.pages?.[openBookPage] || "";
+  };
+}
 
-/* -------------------- PRODUCT PANEL -------------------- */
+/* -------------------- Products -------------------- */
+const products = [
+  { id: "p1", name: "Oak Rune Token", desc: "Hand-finished oak token with carved symbol.", price: 18 },
+  { id: "p2", name: "Walnut Mini Totem", desc: "Small walnut carving, matte oil finish.", price: 25 },
+  { id: "p3", name: "Maple Desk Charm", desc: "Minimal charm piece for desk or shelf.", price: 12 },
+  { id: "p4", name: "Ash Key Fob", desc: "Simple key fob, durable and light.", price: 9 },
+  { id: "p5", name: "Custom Sigil Block", desc: "Commission block — your design, your vibe.", price: 45 },
+];
+
 let selectedProduct = null;
 
 function makeProductThumb(name) {
-  // copyright-safe generated thumbnail
+  // generated image = copyright safe
   const c = document.createElement("canvas");
   c.width = 900;
   c.height = 520;
@@ -141,13 +173,13 @@ function makeProductThumb(name) {
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, 900, 520);
 
-  ctx.strokeStyle = "rgba(155,255,207,0.20)";
-  ctx.lineWidth = 5;
+  ctx.strokeStyle = "rgba(155,255,207,0.22)";
+  ctx.lineWidth = 6;
   ctx.strokeRect(40, 40, 820, 440);
 
   ctx.fillStyle = "rgba(122,162,255,0.22)";
   ctx.beginPath();
-  ctx.roundRect(250, 150, 400, 260, 28);
+  ctx.roundRect(260, 150, 380, 260, 22);
   ctx.fill();
 
   ctx.fillStyle = "rgba(255,255,255,0.92)";
@@ -156,106 +188,25 @@ function makeProductThumb(name) {
 
   ctx.fillStyle = "rgba(255,255,255,0.62)";
   ctx.font = "600 22px Inter, system-ui, sans-serif";
-  ctx.fillText("PyroShop • Generated placeholder image", 70, 150);
+  ctx.fillText("PyroShop • placeholder product image", 70, 150);
 
   return c.toDataURL("image/png");
 }
 
-closePanelBtn.onclick = () => (panel.hidden = true);
+if (addBtn) {
+  addBtn.onclick = () => {
+    if (!selectedProduct) return;
+    const existing = basket.find((i) => i.id === selectedProduct.id);
+    if (existing) existing.qty++;
+    else basket.push({ ...selectedProduct, qty: 1 });
 
-addBtn.onclick = () => {
-  if (!selectedProduct) return;
-
-  const existing = basket.find((item) => item.id === selectedProduct.id);
-  if (existing) existing.qty++;
-  else basket.push({ ...selectedProduct, qty: 1 });
-
-  saveBasket();
-  basketPanel.hidden = false;
-  renderBasket();
-};
-
-/* Basket buttons */
-btnBasket.onclick = () => {
-  basketPanel.hidden = false;
-  renderBasket();
-};
-closeBasketBtn.onclick = () => (basketPanel.hidden = true);
-
-/* -------------------- 3D SETUP -------------------- */
-const sceneHost = document.getElementById("scene");
-let renderer, scene, camera, raycaster, mouse;
-
-scene = new THREE.Scene();
-scene.fog = new THREE.Fog(0x07090f, 12, 90);
-
-camera = new THREE.PerspectiveCamera(60, 1, 0.1, 260);
-
-renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-renderer.outputColorSpace = THREE.SRGBColorSpace;
-sceneHost.innerHTML = "";
-sceneHost.appendChild(renderer.domElement);
-
-raycaster = new THREE.Raycaster();
-mouse = new THREE.Vector2();
-
-/* -------------------- WORLD STATE -------------------- */
-let currentZone = "home"; // home | shop | blog | about
-let isMoving = false;
-
-const CAM_TRAVEL_MS = 2200; // slower + smoother
-let camTween = null;
-
-const CAMERA_POINTS = {
-  home: { label: "Home", pos: new THREE.Vector3(0, 1.85, 10.8), look: new THREE.Vector3(0, 1.25, 0) },
-  shop: { label: "Shop", pos: new THREE.Vector3(-13.4, 1.85, 8.8), look: new THREE.Vector3(-10, 1.25, 0) },
-  blog: { label: "Library", pos: new THREE.Vector3(13.4, 1.85, 8.8), look: new THREE.Vector3(10, 1.25, 0) },
-  about: { label: "About", pos: new THREE.Vector3(0, 1.85, -10.5), look: new THREE.Vector3(0, 1.25, -14) },
-};
-
-function easeInOutCubic(x) {
-  return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
-}
-function getCurrentLookPoint() {
-  const fwd = new THREE.Vector3();
-  camera.getWorldDirection(fwd);
-  return camera.position.clone().add(fwd.multiplyScalar(10));
-}
-
-function setZoneUI(zone) {
-  currentZone = zone;
-  zoneLabel.textContent = CAMERA_POINTS[zone].label;
-  btnBack.hidden = (zone === "home");
-}
-
-function moveCameraTo(zoneName) {
-  if (!CAMERA_POINTS[zoneName]) return;
-  if (isMoving) return;
-
-  // hide overlays when travelling
-  panel.hidden = true;
-  basketPanel.hidden = true;
-  bookModal.hidden = true;
-  if (hoverTip) hoverTip.hidden = true;
-
-  isMoving = true;
-  setZoneUI(zoneName);
-
-  camTween = {
-    t0: performance.now(),
-    dur: CAM_TRAVEL_MS,
-    fromPos: camera.position.clone(),
-    toPos: CAMERA_POINTS[zoneName].pos.clone(),
-    fromLook: getCurrentLookPoint(),
-    toLook: CAMERA_POINTS[zoneName].look.clone(),
+    saveBasket();
+    basketPanel.hidden = false;
+    renderBasket();
   };
 }
 
-btnHome.onclick = () => moveCameraTo("home");
-btnBack.onclick = () => moveCameraTo("home");
-
-/* -------------------- MATERIAL HELPERS -------------------- */
+/* -------------------- Procedural textures -------------------- */
 function makeCanvasTexture(drawFn, size = 512) {
   const c = document.createElement("canvas");
   c.width = c.height = size;
@@ -268,167 +219,303 @@ function makeCanvasTexture(drawFn, size = 512) {
   return tex;
 }
 
-const TEX = {
-  grass: makeCanvasTexture((ctx, s) => {
-    ctx.fillStyle = "#08120e";
-    ctx.fillRect(0, 0, s, s);
-    for (let i = 0; i < 18000; i++) {
-      const x = Math.random() * s;
-      const y = Math.random() * s;
-      const g = 90 + (Math.random() * 120) | 0;
-      ctx.fillStyle = `rgba(40, ${g}, 70, 0.20)`;
-      ctx.fillRect(x, y, 1, 1);
-    }
-  }),
-  wood: makeCanvasTexture((ctx, s) => {
+function texWood() {
+  return makeCanvasTexture((ctx, s) => {
     ctx.fillStyle = "#2a1f14";
     ctx.fillRect(0, 0, s, s);
-    for (let i = 0; i < 120; i++) {
-      const y = (i / 120) * s;
-      ctx.fillStyle = `rgba(255,210,160,${0.04 + Math.random() * 0.06})`;
+    for (let i = 0; i < 140; i++) {
+      const y = (i / 140) * s;
+      const a = 0.06 + Math.random() * 0.07;
+      ctx.fillStyle = `rgba(255, 210, 160, ${a})`;
       ctx.fillRect(0, y, s, 1 + Math.random() * 2);
     }
-  }),
-  dirt: makeCanvasTexture((ctx, s) => {
-    ctx.fillStyle = "#17110d";
+    for (let i = 0; i < 18; i++) {
+      ctx.strokeStyle = `rgba(0,0,0,0.15)`;
+      ctx.lineWidth = 3 + Math.random() * 4;
+      ctx.beginPath();
+      const y = Math.random() * s;
+      ctx.moveTo(0, y);
+      ctx.bezierCurveTo(s * 0.3, y + Math.random() * 30, s * 0.7, y + Math.random() * 30, s, y);
+      ctx.stroke();
+    }
+  });
+}
+
+function texDirt() {
+  return makeCanvasTexture((ctx, s) => {
+    ctx.fillStyle = "#1a1410";
     ctx.fillRect(0, 0, s, s);
     const img = ctx.getImageData(0, 0, s, s);
     for (let i = 0; i < img.data.length; i += 4) {
-      const n = (Math.random() * 45) | 0;
-      img.data[i] = 28 + n;
-      img.data[i + 1] = 20 + (n * 0.8) | 0;
-      img.data[i + 2] = 16 + (n * 0.6) | 0;
+      const n = (Math.random() * 50) | 0;
+      img.data[i] = 30 + n;
+      img.data[i + 1] = 22 + ((n * 0.8) | 0);
+      img.data[i + 2] = 18 + ((n * 0.6) | 0);
       img.data[i + 3] = 255;
     }
     ctx.putImageData(img, 0, 0);
-  }),
+    for (let i = 0; i < 12; i++) {
+      ctx.fillStyle = "rgba(0,0,0,0.15)";
+      ctx.beginPath();
+      ctx.ellipse(
+        Math.random() * s,
+        Math.random() * s,
+        80 + Math.random() * 140,
+        50 + Math.random() * 120,
+        Math.random(),
+        0,
+        Math.PI * 2
+      );
+      ctx.fill();
+    }
+  });
+}
+
+function texGrass() {
+  return makeCanvasTexture((ctx, s) => {
+    ctx.fillStyle = "#0b1511";
+    ctx.fillRect(0, 0, s, s);
+    for (let i = 0; i < 20000; i++) {
+      const x = Math.random() * s;
+      const y = Math.random() * s;
+      const g = 90 + ((Math.random() * 120) | 0);
+      ctx.fillStyle = `rgba(40, ${g}, 70, 0.22)`;
+      ctx.fillRect(x, y, 1, 1);
+    }
+    for (let i = 0; i < 1500; i++) {
+      ctx.strokeStyle = "rgba(90,200,120,0.15)";
+      ctx.lineWidth = 1;
+      const x = Math.random() * s;
+      const y = Math.random() * s;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + (Math.random() * 8 - 4), y - (5 + Math.random() * 18));
+      ctx.stroke();
+    }
+  });
+}
+
+function stoneTexture() {
+  return makeCanvasTexture((ctx, s) => {
+    ctx.fillStyle = "#111726";
+    ctx.fillRect(0, 0, s, s);
+    const img = ctx.getImageData(0, 0, s, s);
+    for (let i = 0; i < img.data.length; i += 4) {
+      const n = (Math.random() * 70) | 0;
+      img.data[i] = 18 + n;
+      img.data[i + 1] = 22 + n;
+      img.data[i + 2] = 35 + n;
+      img.data[i + 3] = 255;
+    }
+    ctx.putImageData(img, 0, 0);
+    for (let i = 0; i < 16; i++) {
+      ctx.strokeStyle = "rgba(0,0,0,0.18)";
+      ctx.lineWidth = 3 + Math.random() * 4;
+      ctx.beginPath();
+      ctx.moveTo(Math.random() * s, Math.random() * s);
+      ctx.lineTo(Math.random() * s, Math.random() * s);
+      ctx.stroke();
+    }
+  });
+}
+
+const TEX = {
+  wood: texWood(),
+  dirt: texDirt(),
+  grass: texGrass(),
+  stone: stoneTexture(),
 };
 
-function labelTexture(text, accent = "rgba(122,162,255,0.7)") {
-  return makeCanvasTexture((ctx, s) => {
-    ctx.clearRect(0, 0, s, s);
-    ctx.fillStyle = "rgba(11,16,32,0.88)";
-    ctx.fillRect(0, 0, s, s);
-    ctx.strokeStyle = accent;
-    ctx.lineWidth = 16;
-    ctx.strokeRect(18, 18, s - 36, s - 36);
+/* -------------------- 3D core -------------------- */
+const sceneHost = document.getElementById("scene");
+let renderer, scene, camera, raycaster, mouse;
 
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.font = "900 96px Inter, system-ui, sans-serif";
+// World state: only allow certain interactions per zone
+let currentZone = "home";
+let inTransit = false;
 
-    ctx.fillStyle = "rgba(255,255,255,0.92)";
-    ctx.fillText(text, s / 2, s / 2);
-  }, 512);
+// Interactables grouped by zone
+const interact = {
+  hotspots: [],
+  home: [],
+  shop: [],
+  blog: [],
+  about: [],
+};
+const productMeshes = []; // shop only
+const bookMeshes = []; // blog only
+
+/* -------------------- Camera rails (slower + smoother) -------------------- */
+const CAMERA_POINTS = {
+  home: { label: "Home", pos: new THREE.Vector3(0, 1.85, 11.0), look: new THREE.Vector3(0, 1.25, 0) },
+  shop: { label: "Shop", pos: new THREE.Vector3(-13.6, 1.85, 8.4), look: new THREE.Vector3(-10, 1.25, 0) },
+  blog: { label: "Library", pos: new THREE.Vector3(13.6, 1.85, 8.4), look: new THREE.Vector3(10, 1.25, 0) },
+  about: { label: "About", pos: new THREE.Vector3(0, 1.85, -10.0), look: new THREE.Vector3(0, 1.25, -14) },
+};
+
+let camTween = null;
+const CAM_TRAVEL_MS = 2400;
+
+function easeInOutCubic(x) {
+  return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
 }
 
-/* -------------------- WORLD CONTENT -------------------- */
-const zoneTriggers = [];       // clickable boxes at HOME
-const shopInteractables = [];  // products etc
-const blogInteractables = [];  // books etc
-const homeInteractables = [];  // checkout box, etc
+function moveCameraTo(zoneName) {
+  const p = CAMERA_POINTS[zoneName];
+  if (!p || !camera) return;
 
-const productMeshes = [];
-const torchFlames = [];
-let campfireData = null;
+  // gate interactions while moving
+  inTransit = true;
 
-/* Lighting */
-scene.add(new THREE.AmbientLight(0xffffff, 0.35));
-const moonLight = new THREE.DirectionalLight(0x93b7ff, 0.9);
-moonLight.position.set(14, 20, 10);
-scene.add(moonLight);
+  // close overlays
+  if (panel) panel.hidden = true;
+  if (basketPanel) basketPanel.hidden = true;
+  if (bookModal) bookModal.hidden = true;
+  if (hoverTip) hoverTip.hidden = true;
 
-const rim = new THREE.DirectionalLight(0x9bffcf, 0.28);
-rim.position.set(-16, 12, -8);
-scene.add(rim);
+  camTween = {
+    t0: performance.now(),
+    dur: CAM_TRAVEL_MS,
+    fromPos: camera.position.clone(),
+    toPos: p.pos.clone(),
+    fromLook: getCurrentLookPoint(),
+    toLook: p.look.clone(),
+    toZone: zoneName,
+  };
+}
 
-// Moon
-const moon = new THREE.Mesh(
-  new THREE.SphereGeometry(1.6, 24, 18),
-  new THREE.MeshStandardMaterial({ color: 0xe6f0ff, emissive: 0xa8c6ff, emissiveIntensity: 0.55, roughness: 0.9 })
-);
-moon.position.set(18, 16, -26);
-scene.add(moon);
+function getCurrentLookPoint() {
+  const fwd = new THREE.Vector3();
+  camera.getWorldDirection(fwd);
+  return camera.position.clone().add(fwd.multiplyScalar(10));
+}
 
-/* Ground */
-const ground = new THREE.Mesh(
-  new THREE.PlaneGeometry(300, 300),
-  new THREE.MeshStandardMaterial({ map: TEX.grass, roughness: 1.0, metalness: 0.0 })
-);
-ground.material.map.repeat.set(6, 6);
-ground.rotation.x = -Math.PI / 2;
-scene.add(ground);
+function setZone(zoneName) {
+  currentZone = zoneName;
+  if (zoneLabel) zoneLabel.textContent = CAMERA_POINTS[zoneName]?.label || zoneName;
+}
 
-/* Dirt paths + torches */
-addDirtPathsAndTorches();
+/* Buttons */
+if (btnBack) btnBack.onclick = () => moveCameraTo("home");
+if (homeGlow) homeGlow.onclick = () => moveCameraTo("home");
 
-/* Home: campfire + benches + checkout */
-const campfire = createCampfire();
-campfire.position.set(0, 0, 0);
-scene.add(campfire);
-campfireData = campfire.userData.fire;
+/* -------------------- Build world -------------------- */
+init3D();
+function init3D() {
+  scene = new THREE.Scene();
+  scene.fog = new THREE.Fog(0x07090f, 12, 95);
 
-addLogBenches();
+  camera = new THREE.PerspectiveCamera(60, sceneHost.clientWidth / sceneHost.clientHeight, 0.1, 280);
+  camera.position.copy(CAMERA_POINTS.home.pos);
+  camera.lookAt(CAMERA_POINTS.home.look);
 
-const checkout = createCheckoutKiosk();
-checkout.position.set(2.8, 0, 0.2);
-scene.add(checkout);
-homeInteractables.push(checkout);
+  renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(sceneHost.clientWidth, sceneHost.clientHeight);
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  sceneHost.innerHTML = "";
+  sceneHost.appendChild(renderer.domElement);
 
-/* Shop: open cabin + products */
-const cabin = createOpenCabin();
-cabin.position.set(-10, 0, 0);
-scene.add(cabin);
+  // Lighting
+  scene.add(new THREE.AmbientLight(0xffffff, 0.35));
+  const moonLight = new THREE.DirectionalLight(0x93b7ff, 0.9);
+  moonLight.position.set(14, 20, 10);
+  scene.add(moonLight);
 
-addShopProducts();
+  const rim = new THREE.DirectionalLight(0x9bffcf, 0.35);
+  rim.position.set(-16, 12, -8);
+  scene.add(rim);
 
-/* Library: shelves + books */
-const library = createLibrary();
-library.position.set(10, 0, 0);
-scene.add(library);
+  // Moon (visual)
+  const moon = new THREE.Mesh(
+    new THREE.SphereGeometry(1.6, 24, 18),
+    new THREE.MeshStandardMaterial({ color: 0xe6f0ff, emissive: 0xa8c6ff, emissiveIntensity: 0.55, roughness: 0.9 })
+  );
+  moon.position.set(18, 16, -26);
+  scene.add(moon);
 
-/* About plinth */
-const about = createAboutPlinth();
-about.position.set(0, 0, -14);
-scene.add(about);
+  // Ground (grass)
+  const groundMat = new THREE.MeshStandardMaterial({ map: TEX.grass, roughness: 1.0, metalness: 0.0 });
+  groundMat.map.repeat.set(6, 6);
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(300, 300), groundMat);
+  ground.rotation.x = -Math.PI / 2;
+  ground.position.y = 0;
+  scene.add(ground);
 
-/* Woodland ring */
-addWoodlandRing();
+  // Dirt paths + torches
+  addDirtPathsAndTorches();
 
-/* HOME clickable “boxes” around each location */
-addZoneTriggerBox("Shop", "shop", new THREE.Vector3(-10, 1.2, 0), new THREE.Vector3(7, 3.5, 7));
-addZoneTriggerBox("Library", "blog", new THREE.Vector3(10, 1.2, 0), new THREE.Vector3(7, 3.5, 7));
-addZoneTriggerBox("About", "about", new THREE.Vector3(0, 1.2, -14), new THREE.Vector3(7, 3.5, 7));
-addZoneTriggerBox("Checkout", "checkout", new THREE.Vector3(2.8, 0.8, 0.2), new THREE.Vector3(3.2, 2.2, 3.2));
+  // Home: campfire + benches + checkout kiosk
+  const campfire = createCampfire();
+  campfire.position.set(0, 0, 0);
+  scene.add(campfire);
 
-/* -------------------- ZONE TRIGGERS -------------------- */
-function addZoneTriggerBox(label, zone, center, size) {
+  addLogBenches();
+  const checkout = createCheckoutKiosk();
+  checkout.position.set(2.8, 0, 0.2);
+  scene.add(checkout);
+  interact.home.push(...collectMeshes(checkout));
+
+  // Shop area: open-front log cabin + products
+  const cabin = createCabin();
+  cabin.position.set(-10, 0, 0);
+  scene.add(cabin);
+
+  // Library area: stone shelves + books + trees
+  const library = createLibrary();
+  library.position.set(10, 0, 0);
+  scene.add(library);
+
+  // About plinth
+  const about = createAboutPlinth();
+  about.position.set(0, 0, -14);
+  scene.add(about);
+
+  // Woodlands ring
+  addWoodlandRing();
+
+  // Sky details
+  addStars();
+  addClouds();
+  addFireflies();
+  addAnimals();
+
+  // HOTSPOTS (big invisible click boxes) — replaces old signs
+  addHotspot("shop", new THREE.Vector3(-10, 1.7, 0), new THREE.Vector3(8.0, 4.0, 7.0));
+  addHotspot("blog", new THREE.Vector3(10, 1.9, 0), new THREE.Vector3(9.0, 5.0, 7.0));
+  addHotspot("about", new THREE.Vector3(0, 1.6, -14), new THREE.Vector3(7.0, 4.0, 7.0));
+  addHotspot("home", new THREE.Vector3(0, 1.4, 0), new THREE.Vector3(9.0, 4.0, 9.0)); // optional home hotspot
+
+  // Add shop products (only interactive in shop zone)
+  addShopProducts();
+
+  // Add library books to interact.blog list
+  interact.blog.push(...bookMeshes);
+
+  // Input
+  raycaster = new THREE.Raycaster();
+  mouse = new THREE.Vector2();
+  renderer.domElement.addEventListener("pointerdown", onPointerDown);
+  renderer.domElement.addEventListener("pointermove", onPointerMove);
+  window.addEventListener("resize", onResize);
+
+  setZone("home");
+  onResize();
+  animate();
+}
+
+/* -------------------- HOTSPOTS -------------------- */
+function addHotspot(zone, center, size) {
   const geo = new THREE.BoxGeometry(size.x, size.y, size.z);
-  const mat = new THREE.MeshStandardMaterial({
-    color: 0x0b1020,
-    transparent: true,
-    opacity: 0.0,   // invisible but raycastable
-    depthWrite: false,
-  });
+  const mat = new THREE.MeshBasicMaterial({ color: 0x00ff00, transparent: true, opacity: 0.0 });
   const box = new THREE.Mesh(geo, mat);
   box.position.copy(center);
-  box.userData = { type: "zone", zone };
-
-  // floating label (visible)
-  const tex = labelTexture(label, "rgba(122,162,255,0.55)");
-  const lbl = new THREE.Mesh(
-    new THREE.PlaneGeometry(2.4, 0.9),
-    new THREE.MeshStandardMaterial({ map: tex, transparent: true, emissive: 0x7aa2ff, emissiveIntensity: 0.25 })
-  );
-  lbl.position.copy(center).add(new THREE.Vector3(0, 2.2, 2.8));
-  lbl.rotation.y = Math.PI;
-  scene.add(lbl);
-
+  box.userData = { type: "hotspot", zone };
   scene.add(box);
-  zoneTriggers.push(box);
+  interact.hotspots.push(box);
 }
 
-/* -------------------- BUILD PIECES -------------------- */
+/* -------------------- Paths + torches -------------------- */
 function addDirtPathsAndTorches() {
   const dirtMat = new THREE.MeshStandardMaterial({ map: TEX.dirt, roughness: 1.0, metalness: 0.0 });
   dirtMat.map.repeat.set(4, 4);
@@ -437,6 +524,7 @@ function addDirtPathsAndTorches() {
     const dx = to.x - from.x;
     const dz = to.z - from.z;
     const len = Math.sqrt(dx * dx + dz * dz);
+
     const path = new THREE.Mesh(new THREE.PlaneGeometry(len, width), dirtMat);
     path.rotation.x = -Math.PI / 2;
     path.position.set((from.x + to.x) / 2, 0.02, (from.z + to.z) / 2);
@@ -448,7 +536,7 @@ function addDirtPathsAndTorches() {
       const t = i / steps;
       const x = from.x + dx * t;
       const z = from.z + dz * t;
-      const side = (i % 2 === 0) ? 1 : -1;
+      const side = i % 2 === 0 ? 1 : -1;
       addTorch(new THREE.Vector3(x, 0, z + side * (width * 0.6)));
     }
   }
@@ -460,6 +548,8 @@ function addDirtPathsAndTorches() {
 
 function addTorch(pos) {
   const poleMat = new THREE.MeshStandardMaterial({ map: TEX.wood, roughness: 1.0 });
+  poleMat.map.repeat.set(1, 2);
+
   const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, 1.6, 10), poleMat);
   pole.position.set(pos.x, 0.8, pos.z);
   scene.add(pole);
@@ -478,13 +568,15 @@ function addTorch(pos) {
   light.position.set(pos.x, 1.7, pos.z);
   scene.add(light);
 
-  torchFlames.push({ flame, light, seed: pos.x * 0.7 + pos.z * 0.2 });
+  flame.userData = { torch: { light } };
 }
 
+/* -------------------- Home: Campfire + benches -------------------- */
 function createCampfire() {
   const g = new THREE.Group();
 
   const logMat = new THREE.MeshStandardMaterial({ map: TEX.wood, roughness: 1.0 });
+  logMat.map.repeat.set(2, 1);
   for (let i = 0; i < 3; i++) {
     const log = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 1.35, 12), logMat);
     log.rotation.z = Math.PI / 2;
@@ -504,14 +596,14 @@ function createCampfire() {
   const flameMat = new THREE.MeshStandardMaterial({
     color: 0xffaa55,
     emissive: 0xff6611,
-    emissiveIntensity: 1.3,
+    emissiveIntensity: 1.0,
     roughness: 0.6,
   });
   const flame = new THREE.Mesh(new THREE.ConeGeometry(0.26, 0.75, 10), flameMat);
   flame.position.set(0, 0.65, 0);
   g.add(flame);
 
-  const fireLight = new THREE.PointLight(0xff8844, 2.4, 15);
+  const fireLight = new THREE.PointLight(0xff8844, 2.2, 15);
   fireLight.position.set(0, 1.05, 0);
   g.add(fireLight);
 
@@ -521,6 +613,8 @@ function createCampfire() {
 
 function addLogBenches() {
   const benchMat = new THREE.MeshStandardMaterial({ map: TEX.wood, roughness: 1.0 });
+  benchMat.map.repeat.set(2, 1);
+
   const benchGeo = new THREE.CylinderGeometry(0.17, 0.17, 2.4, 14);
   const benchY = 0.22;
 
@@ -540,35 +634,60 @@ function addLogBenches() {
   });
 }
 
+/* -------------------- Checkout kiosk -------------------- */
+function neonTextTexture(text, accent = "#ffb86b") {
+  return makeCanvasTexture((ctx, s) => {
+    ctx.clearRect(0, 0, s, s);
+    ctx.fillStyle = "rgba(11,16,32,0.85)";
+    ctx.fillRect(0, 0, s, s);
+
+    ctx.strokeStyle = "rgba(255,184,107,0.45)";
+    ctx.lineWidth = 14;
+    ctx.strokeRect(18, 18, s - 36, s - 36);
+
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.font = "900 96px Inter, system-ui, sans-serif";
+
+    ctx.fillStyle = accent;
+    for (let i = 0; i < 6; i++) {
+      ctx.globalAlpha = 0.12;
+      ctx.fillText(text, s / 2, s / 2);
+    }
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = "rgba(255,255,255,0.92)";
+    ctx.fillText(text, s / 2, s / 2);
+  }, 512);
+}
+
 function createCheckoutKiosk() {
   const g = new THREE.Group();
   const mat = new THREE.MeshStandardMaterial({ color: 0x101625, roughness: 0.9 });
 
   const base = new THREE.Mesh(new THREE.BoxGeometry(1.8, 1.1, 1.0), mat);
   base.position.set(0, 0.55, 0);
+  base.userData = { type: "checkout" };
   g.add(base);
 
-  const top = new THREE.Mesh(
-    new THREE.BoxGeometry(1.9, 0.14, 1.08),
-    new THREE.MeshStandardMaterial({ color: 0x151a2a, roughness: 0.7 })
-  );
+  const top = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.14, 1.08), new THREE.MeshStandardMaterial({ color: 0x151a2a, roughness: 0.7 }));
   top.position.set(0, 1.12, 0);
   g.add(top);
 
-  const tex = labelTexture("CHECKOUT", "rgba(255,184,107,0.55)");
-  const signMat = new THREE.MeshStandardMaterial({ map: tex, emissive: 0xffb86b, emissiveIntensity: 0.35, transparent: true });
+  const tex = neonTextTexture("CHECKOUT", "#ffb86b");
+  const signMat = new THREE.MeshStandardMaterial({ map: tex, emissive: 0xffb86b, emissiveIntensity: 0.65, transparent: true });
   const sign = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 0.6), signMat);
   sign.position.set(0, 1.55, 0.55);
   g.add(sign);
 
-  g.userData = { type: "checkout" };
   return g;
 }
 
-function createOpenCabin() {
+/* -------------------- Shop: Open-front log cabin -------------------- */
+function createCabin() {
   const g = new THREE.Group();
 
   const wood = new THREE.MeshStandardMaterial({ map: TEX.wood, roughness: 0.95 });
+  wood.map.repeat.set(2, 1);
   const roof = new THREE.MeshStandardMaterial({ color: 0x151a2a, roughness: 0.95 });
 
   const wallThickness = 0.35;
@@ -599,9 +718,33 @@ function createOpenCabin() {
   floor.position.set(0, 0.02, 0);
   g.add(floor);
 
-  // label
-  const shopTex = labelTexture("SHOP", "rgba(122,162,255,0.55)");
-  const shopMat = new THREE.MeshStandardMaterial({ map: shopTex, emissive: 0x7aa2ff, emissiveIntensity: 0.25, transparent: true });
+  // Shelves (3 walls)
+  const shelfMat = new THREE.MeshStandardMaterial({ color: 0x141a2a, roughness: 0.85 });
+
+  // back shelves
+  for (let r = 0; r < 3; r++) {
+    const shelf = new THREE.Mesh(new THREE.BoxGeometry(4.8, 0.18, 0.75), shelfMat);
+    shelf.position.set(0, 1.0 + r * 0.85, -1.7);
+    g.add(shelf);
+  }
+  // left shelves
+  for (let r = 0; r < 3; r++) {
+    const shelf = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.18, 0.75), shelfMat);
+    shelf.rotation.y = Math.PI / 2;
+    shelf.position.set(-2.2, 1.0 + r * 0.85, 0);
+    g.add(shelf);
+  }
+  // right shelves
+  for (let r = 0; r < 3; r++) {
+    const shelf = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.18, 0.75), shelfMat);
+    shelf.rotation.y = -Math.PI / 2;
+    shelf.position.set(2.2, 1.0 + r * 0.85, 0);
+    g.add(shelf);
+  }
+
+  // Neon labels (visual only)
+  const shopTex = neonTextTexture("SHOP", "#7aa2ff");
+  const shopMat = new THREE.MeshStandardMaterial({ map: shopTex, emissive: 0x7aa2ff, emissiveIntensity: 0.65, transparent: true });
   const shopLabel = new THREE.Mesh(new THREE.PlaneGeometry(2.2, 0.85), shopMat);
   shopLabel.position.set(0, 3.9, 2.25);
   shopLabel.rotation.y = Math.PI;
@@ -610,88 +753,8 @@ function createOpenCabin() {
   return g;
 }
 
-function createLibrary() {
-  const g = new THREE.Group();
-
-  const wall = new THREE.MeshStandardMaterial({ color: 0x0f1424, roughness: 0.96 });
-  const shelf = new THREE.MeshStandardMaterial({ color: 0x151a2a, roughness: 0.86 });
-
-  const back = new THREE.Mesh(new THREE.BoxGeometry(6.3, 4.2, 1.05), wall);
-  back.position.set(0, 2.1, 0);
-  g.add(back);
-
-  for (let r = 0; r < 4; r++) {
-    const plank = new THREE.Mesh(new THREE.BoxGeometry(5.9, 0.12, 0.82), shelf);
-    plank.position.set(0, 0.85 + r * 0.9, 0.12);
-    g.add(plank);
-  }
-
-  // label
-  const libTex = labelTexture("LIBRARY", "rgba(155,255,207,0.55)");
-  const libMat = new THREE.MeshStandardMaterial({ map: libTex, emissive: 0x9bffcf, emissiveIntensity: 0.25, transparent: true });
-  const libLabel = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 0.9), libMat);
-  libLabel.position.set(0, 4.1, 0.75);
-  g.add(libLabel);
-
-  // books (interactive, but only in blog zone)
-  const bookMat = new THREE.MeshStandardMaterial({ color: 0x7aa2ff, roughness: 0.7, metalness: 0.05, emissive: 0x0b1020 });
-
-  const bookData = [
-    { title: "Wood Joinery Notes", date: "2019-06-12", pages: ["Page 1: Mortise & tenon basics...", "Page 2: Tools list...", "Page 3: Common mistakes..."] },
-    { title: "Ilam Field Sketches", date: "2021-09-03", pages: ["Page 1: Landscape observations...", "Page 2: Material weathering notes..."] },
-    { title: "Bonecraft Reference", date: "2018-02-22", pages: ["Page 1: Ethical sourcing...", "Page 2: Small carving...", "Page 3: Finishes..."] },
-  ];
-
-  let bi = 0;
-  for (let r = 0; r < 4; r++) {
-    for (let i = 0; i < 10; i++) {
-      const bd = bookData[bi % bookData.length];
-      const book = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.58 + (i % 3) * 0.06, 0.18), bookMat.clone());
-      book.position.set(-2.55 + i * 0.57, 1.08 + r * 0.9, 0.38);
-
-      book.userData = { type: "book", title: bd.title, date: bd.date, pages: bd.pages };
-      g.add(book);
-      blogInteractables.push(book);
-
-      bi++;
-    }
-  }
-
-  return g;
-}
-
-function createAboutPlinth() {
-  const g = new THREE.Group();
-  const mat = new THREE.MeshStandardMaterial({ color: 0x101625, roughness: 1.0 });
-
-  const base = new THREE.Mesh(new THREE.CylinderGeometry(2.25, 2.45, 0.55, 24), mat);
-  base.position.set(0, 0.275, 0);
-  g.add(base);
-
-  const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.82, 1.02, 2.5, 18), mat);
-  pillar.position.set(0, 1.8, 0);
-  g.add(pillar);
-
-  const plaqueTex = labelTexture("ABOUT", "rgba(155,255,207,0.45)");
-  const plaque = new THREE.Mesh(
-    new THREE.PlaneGeometry(2.25, 1.05),
-    new THREE.MeshStandardMaterial({ map: plaqueTex, emissive: 0x9bffcf, emissiveIntensity: 0.2, transparent: true })
-  );
-  plaque.position.set(0, 1.8, 1.08);
-  g.add(plaque);
-
-  return g;
-}
-
+/* -------------------- Shop products -------------------- */
 function addShopProducts() {
-  const products = [
-    { id: "p1", name: "Oak Rune Token", desc: "Hand-finished oak token with carved symbol.", price: 18 },
-    { id: "p2", name: "Walnut Mini Totem", desc: "Small walnut carving, matte oil finish.", price: 25 },
-    { id: "p3", name: "Maple Desk Charm", desc: "Minimal charm piece for desk or shelf.", price: 12 },
-    { id: "p4", name: "Ash Key Fob", desc: "Simple key fob, durable and light.", price: 9 },
-    { id: "p5", name: "Custom Sigil Block", desc: "Commission block — your design, your vibe.", price: 45 },
-  ];
-
   const shelfMat = new THREE.MeshStandardMaterial({ color: 0x141a2a, roughness: 0.85 });
   const shelf = new THREE.Mesh(new THREE.BoxGeometry(7.2, 0.22, 1.25), shelfMat);
   shelf.position.set(-10, 1.05, 2.85);
@@ -711,10 +774,127 @@ function addShopProducts() {
     scene.add(box);
 
     productMeshes.push(box);
-    shopInteractables.push(box);
+    interact.shop.push(box);
   });
 }
 
+/* -------------------- Blog: Library with stone shelves + books -------------------- */
+function createOakTree() {
+  const g = new THREE.Group();
+  const trunk = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.35, 0.55, 4.0, 10),
+    new THREE.MeshStandardMaterial({ map: TEX.wood, roughness: 1.0 })
+  );
+  trunk.position.y = 2.0;
+  g.add(trunk);
+
+  const leaves = new THREE.Mesh(
+    new THREE.SphereGeometry(1.9, 14, 12),
+    new THREE.MeshStandardMaterial({ color: 0x0f3a22, roughness: 1.0 })
+  );
+  leaves.position.y = 4.6;
+  g.add(leaves);
+  return g;
+}
+
+function createLibrary() {
+  const g = new THREE.Group();
+
+  const t1 = createOakTree(); t1.position.set(-3.9, 0, 1.2);
+  const t2 = createOakTree(); t2.position.set( 3.9, 0, 1.2);
+  g.add(t1); g.add(t2);
+
+  const stoneMat = new THREE.MeshStandardMaterial({ map: TEX.stone, roughness: 1.0 });
+  stoneMat.map.repeat.set(2, 2);
+
+  const wall = new THREE.Mesh(new THREE.BoxGeometry(7.0, 4.3, 1.2), stoneMat);
+  wall.position.set(0, 2.15, 0);
+  g.add(wall);
+
+  for (let r = 0; r < 4; r++) {
+    const shelf = new THREE.Mesh(new THREE.BoxGeometry(6.4, 0.16, 0.9), stoneMat);
+    shelf.position.set(0, 0.95 + r * 0.9, 0.25);
+    g.add(shelf);
+  }
+
+  const libTex = neonTextTexture("LIBRARY", "#9bffcf");
+  const libMat = new THREE.MeshStandardMaterial({ map: libTex, emissive: 0x9bffcf, emissiveIntensity: 0.65, transparent: true });
+  const libLabel = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 0.9), libMat);
+  libLabel.position.set(0, 4.15, 0.75);
+  g.add(libLabel);
+
+  // Placeholder book data
+  const bookData = [
+    { title: "Wood Joinery Notes", date: "2019-06-12", pages: [
+      "Page 1: Mortise & tenon basics...\n\n(placeholder text)",
+      "Page 2: Tools list and safety...\n\n(placeholder text)",
+      "Page 3: Common mistakes...\n\n(placeholder text)"
+    ]},
+    { title: "Ilam Field Sketches", date: "2021-09-03", pages: [
+      "Page 1: Landscape observations...\n\n(placeholder text)",
+      "Page 2: Material weathering notes...\n\n(placeholder text)"
+    ]},
+    { title: "Bonecraft Reference", date: "2018-02-22", pages: [
+      "Page 1: Ethical sourcing & cleaning...\n\n(placeholder text)",
+      "Page 2: Small carving techniques...\n\n(placeholder text)",
+      "Page 3: Finishes...\n\n(placeholder text)"
+    ]},
+  ];
+
+  const bookMat = new THREE.MeshStandardMaterial({
+    color: 0x7aa2ff,
+    roughness: 0.7,
+    metalness: 0.05,
+    emissive: 0x0b1020,
+  });
+
+  let bi = 0;
+  for (let r = 0; r < 4; r++) {
+    for (let i = 0; i < 10; i++) {
+      const bd = bookData[bi % bookData.length];
+      const book = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.58 + (i % 3) * 0.06, 0.18), bookMat.clone());
+      book.position.set(10 + (-2.85 + i * 0.63), 1.12 + r * 0.9, 0.62); // absolute placement (blog area)
+      book.userData = { type: "book", title: bd.title, date: bd.date, pages: bd.pages };
+      scene.add(book);
+      bookMeshes.push(book);
+      bi++;
+    }
+  }
+
+  return g;
+}
+
+/* -------------------- About plinth -------------------- */
+function createAboutPlinth() {
+  const g = new THREE.Group();
+  const mat = new THREE.MeshStandardMaterial({ color: 0x101625, roughness: 1.0 });
+
+  const base = new THREE.Mesh(new THREE.CylinderGeometry(2.25, 2.45, 0.55, 24), mat);
+  base.position.set(0, 0.275, 0);
+  g.add(base);
+
+  const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.82, 1.02, 2.5, 18), mat);
+  pillar.position.set(0, 1.8, 0);
+  g.add(pillar);
+
+  const plaque = new THREE.Mesh(
+    new THREE.PlaneGeometry(2.25, 1.05),
+    new THREE.MeshStandardMaterial({ color: 0x0b1020, emissive: 0x9bffcf, emissiveIntensity: 0.28 })
+  );
+  plaque.position.set(0, 1.8, 1.08);
+  g.add(plaque);
+
+  const aboutTex = neonTextTexture("ABOUT", "#9bffcf");
+  const aboutMat = new THREE.MeshStandardMaterial({ map: aboutTex, emissive: 0x9bffcf, emissiveIntensity: 0.6, transparent: true });
+  const aboutLabel = new THREE.Mesh(new THREE.PlaneGeometry(2.2, 0.85), aboutMat);
+  aboutLabel.position.set(0, 3.2, 2.0);
+  aboutLabel.rotation.y = Math.PI;
+  g.add(aboutLabel);
+
+  return g;
+}
+
+/* -------------------- Woodland backdrop -------------------- */
 function addWoodlandRing() {
   const trunkMat = new THREE.MeshStandardMaterial({ map: TEX.wood, roughness: 1.0 });
   const leafMat = new THREE.MeshStandardMaterial({ color: 0x0f3a22, roughness: 1.0 });
@@ -735,81 +915,181 @@ function addWoodlandRing() {
     leaves.position.set(x, 2.7, z);
     leaves.rotation.y = Math.random() * Math.PI;
 
-    const g = new THREE.Group();
-    g.add(trunk);
-    g.add(leaves);
+    const group = new THREE.Group();
+    group.add(trunk);
+    group.add(leaves);
 
     const s = 0.85 + Math.random() * 1.25;
-    g.scale.setScalar(s);
-
-    scene.add(g);
+    group.scale.setScalar(s);
+    scene.add(group);
   }
 }
 
-/* -------------------- INTERACTION RULES --------------------
-   HOME: can click zone triggers (Shop/Library/About/Checkout)
-   SHOP: can click products only
-   BLOG: can click books only
-   ABOUT: nothing extra (just scenery)
------------------------------------------------------------- */
+/* -------------------- Sky + ambience -------------------- */
+let _stars, _clouds = [], _fireflies = [], _animals = [];
 
-function activeRaycastTargets() {
-  if (currentZone === "home") return zoneTriggers;
-  if (currentZone === "shop") return shopInteractables;
-  if (currentZone === "blog") return blogInteractables;
-  return [];
+function addStars() {
+  const count = 1400;
+  const geo = new THREE.BufferGeometry();
+  const pos = new Float32Array(count * 3);
+  for (let i = 0; i < count; i++) {
+    const r = 90 + Math.random() * 120;
+    const a = Math.random() * Math.PI * 2;
+    const y = 18 + Math.random() * 55;
+    pos[i * 3 + 0] = Math.cos(a) * r + (Math.random() * 10 - 5);
+    pos[i * 3 + 1] = y;
+    pos[i * 3 + 2] = Math.sin(a) * r + (Math.random() * 10 - 5);
+  }
+  geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+  const mat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.12, transparent: true, opacity: 0.85 });
+  _stars = new THREE.Points(geo, mat);
+  scene.add(_stars);
+}
+
+function cloudTexture() {
+  return makeCanvasTexture((ctx, s) => {
+    ctx.clearRect(0, 0, s, s);
+    for (let i = 0; i < 70; i++) {
+      const x = Math.random() * s, y = Math.random() * s;
+      const r = 40 + Math.random() * 110;
+      const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+      g.addColorStop(0, "rgba(255,255,255,0.16)");
+      g.addColorStop(1, "rgba(255,255,255,0)");
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }, 512);
+}
+
+function addClouds() {
+  const tex = cloudTexture();
+  const baseMat = new THREE.MeshStandardMaterial({
+    map: tex,
+    transparent: true,
+    opacity: 0.55,
+    depthWrite: false,
+    roughness: 1.0,
+    metalness: 0,
+  });
+
+  for (let i = 0; i < 10; i++) {
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(22, 12), baseMat.clone());
+    m.position.set(-40 + Math.random() * 80, 16 + Math.random() * 10, -40 + Math.random() * 80);
+    m.rotation.y = Math.random() * Math.PI * 2;
+    m.userData = { vx: 0.2 + Math.random() * 0.25 };
+    _clouds.push(m);
+    scene.add(m);
+  }
+}
+
+function addFireflies() {
+  const geo = new THREE.BufferGeometry();
+  const count = 140;
+  const pos = new Float32Array(count * 3);
+  for (let i = 0; i < count; i++) {
+    pos[i * 3 + 0] = Math.random() * 18 - 9;
+    pos[i * 3 + 1] = 0.6 + Math.random() * 2.2;
+    pos[i * 3 + 2] = Math.random() * 18 - 9;
+  }
+  geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+  const mat = new THREE.PointsMaterial({ color: 0x9bffcf, size: 0.10, transparent: true, opacity: 0.85 });
+  const pts = new THREE.Points(geo, mat);
+  _fireflies.push(pts);
+  scene.add(pts);
+}
+
+function addAnimals() {
+  const mat1 = new THREE.MeshStandardMaterial({ color: 0x2a1f14, roughness: 1.0 });
+  const mat2 = new THREE.MeshStandardMaterial({ color: 0x101625, roughness: 1.0 });
+
+  for (let i = 0; i < 6; i++) {
+    const a = new THREE.Mesh(new THREE.SphereGeometry(0.18, 10, 10), i % 2 ? mat1 : mat2);
+    a.position.set(Math.random() * 22 - 11, 0.18, Math.random() * 22 - 11);
+    a.userData = {
+      t: Math.random() * 10,
+      speed: 0.25 + Math.random() * 0.25,
+      radius: 3.5 + Math.random() * 7.5,
+      center: new THREE.Vector3(Math.random() * 10 - 5, 0, Math.random() * 10 - 5),
+    };
+    _animals.push(a);
+    scene.add(a);
+  }
+}
+
+/* -------------------- Input gating -------------------- */
+function activeTargets() {
+  // While moving: no clicks
+  if (inTransit) return [];
+
+  // On home: ONLY hotspots (big click boxes)
+  if (currentZone === "home") return interact.hotspots;
+
+  // In zones: zone interactables + allow hotspots too (optional)
+  if (currentZone === "shop") return [...interact.shop, ...interact.hotspots];
+  if (currentZone === "blog") return [...interact.blog, ...interact.hotspots];
+  if (currentZone === "about") return [...interact.about, ...interact.hotspots];
+  return interact.hotspots;
 }
 
 function onPointerDown(ev) {
-  if (isMoving) return;
+  if (!renderer || !camera || !raycaster || !mouse) return;
+
+  const targets = activeTargets();
+  if (!targets.length) return;
 
   const rect = renderer.domElement.getBoundingClientRect();
   mouse.x = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
   mouse.y = -(((ev.clientY - rect.top) / rect.height) * 2 - 1);
 
   raycaster.setFromCamera(mouse, camera);
-  const targets = activeRaycastTargets();
-  const hits = raycaster.intersectObjects(targets, true);
+  const hits = raycaster.intersectObjects(targets, false);
   if (!hits.length) return;
 
   const obj = hits[0].object;
   const data = obj.userData || {};
 
-  // HOME zone selection
-  if (currentZone === "home" && data.type === "zone") {
-    if (data.zone === "checkout") {
-      basketPanel.hidden = false;
-      renderBasket();
-      return;
-    }
+  // Hotspot travel
+  if (data.type === "hotspot") {
     moveCameraTo(data.zone);
     return;
   }
 
-  // SHOP product selection
-  if (currentZone === "shop" && data.type === "product") {
-    productMeshes.forEach((m) => m.material.emissive.setHex(0x0b1020));
-    obj.material.emissive.setHex(0x203060);
-
-    titleEl.textContent = data.name;
-    descEl.textContent = data.desc;
-    priceEl.textContent = money(data.price);
-    imgEl.src = makeProductThumb(data.name);
-
-    selectedProduct = { id: data.id, name: data.name, desc: data.desc, price: data.price };
-    panel.hidden = false;
+  // Checkout (home zone only)
+  if (data.type === "checkout") {
+    if (basketPanel) basketPanel.hidden = false;
+    renderBasket();
     return;
   }
 
-  // BLOG book selection
-  if (currentZone === "blog" && data.type === "book") {
+  // Product (shop only)
+  if (data.type === "product") {
+    productMeshes.forEach((m) => m.material.emissive?.setHex(0x0b1020));
+    obj.material.emissive?.setHex(0x203060);
+
+    if (titleEl) titleEl.textContent = data.name;
+    if (descEl) descEl.textContent = data.desc;
+    if (priceEl) priceEl.textContent = money(data.price);
+    if (imgEl) imgEl.src = makeProductThumb(data.name);
+
+    selectedProduct = { id: data.id, name: data.name, desc: data.desc, price: data.price };
+    if (panel) panel.hidden = false;
+    return;
+  }
+
+  // Book (blog only)
+  if (data.type === "book") {
     openBookViewer(data);
     return;
   }
 }
 
 function onPointerMove(ev) {
-  if (currentZone !== "blog" || isMoving) {
+  if (!renderer || !camera || !raycaster || !mouse) return;
+
+  // only show tooltip in blog zone, and only when not moving
+  if (inTransit || currentZone !== "blog") {
     if (hoverTip) hoverTip.hidden = true;
     return;
   }
@@ -819,43 +1099,80 @@ function onPointerMove(ev) {
   mouse.y = -(((ev.clientY - rect.top) / rect.height) * 2 - 1);
 
   raycaster.setFromCamera(mouse, camera);
-  const hits = raycaster.intersectObjects(blogInteractables, true);
+  const hits = raycaster.intersectObjects(interact.blog, false);
 
   if (!hits.length) {
-    hoverTip.hidden = true;
+    if (hoverTip) hoverTip.hidden = true;
     return;
   }
 
   const data = hits[0].object.userData || {};
   if (data.type !== "book") {
-    hoverTip.hidden = true;
+    if (hoverTip) hoverTip.hidden = true;
     return;
   }
 
-  hoverTip.hidden = false;
-  hoverTip.textContent = `${data.title} (${data.date})`;
-  hoverTip.style.left = (ev.clientX + 12) + "px";
-  hoverTip.style.top = (ev.clientY + 12) + "px";
+  if (hoverTip) {
+    hoverTip.hidden = false;
+    hoverTip.textContent = `${data.title} (${data.date})`;
+    hoverTip.style.left = ev.clientX + 12 + "px";
+    hoverTip.style.top = ev.clientY + 12 + "px";
+  }
 }
 
-/* -------------------- RESIZE -------------------- */
+/* -------------------- Utils -------------------- */
+function collectMeshes(root) {
+  const arr = [];
+  root.traverse((o) => { if (o.isMesh) arr.push(o); });
+  return arr;
+}
+
+/* -------------------- Render loop -------------------- */
 function onResize() {
+  if (!renderer || !camera) return;
   const w = sceneHost.clientWidth;
   const h = sceneHost.clientHeight;
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
   renderer.setSize(w, h);
 }
+window.addEventListener("resize", onResize);
 
-/* -------------------- LOOP -------------------- */
 const _tmpLook = new THREE.Vector3();
 
 function animate() {
   requestAnimationFrame(animate);
+  if (!renderer || !scene || !camera) return;
 
   const t = performance.now() * 0.001;
 
-  // camera tween
+  // Clouds drift
+  _clouds.forEach((c) => {
+    c.position.x += c.userData.vx * 0.01;
+    if (c.position.x > 60) c.position.x = -60;
+  });
+
+  // Fireflies wiggle
+  _fireflies.forEach((pts) => {
+    const a = pts.geometry.attributes.position;
+    for (let i = 0; i < a.count; i++) {
+      const ix = i * 3;
+      a.array[ix + 1] += Math.sin(t * 2 + i) * 0.0015;
+      a.array[ix + 0] += Math.cos(t * 1.5 + i) * 0.0010;
+    }
+    a.needsUpdate = true;
+  });
+
+  // Animals wander
+  _animals.forEach((an, i) => {
+    const ud = an.userData;
+    ud.t += 0.008 * ud.speed;
+    an.position.x = ud.center.x + Math.cos(ud.t + i) * ud.radius;
+    an.position.z = ud.center.z + Math.sin(ud.t + i) * ud.radius;
+    an.rotation.y = -(ud.t + i);
+  });
+
+  // Camera tween
   if (camTween) {
     const now = performance.now();
     const u = Math.min(1, (now - camTween.t0) / camTween.dur);
@@ -867,24 +1184,33 @@ function animate() {
 
     if (u >= 1) {
       camTween = null;
-      isMoving = false;
+      inTransit = false;
+      setZone(camTween?.toZone || currentZone); // safety
+      // NOTE: camTween is null now, so setZone must use stored value:
     }
   }
 
-  // campfire flicker
-  if (campfireData) {
-    campfireData.flame.scale.y = 0.92 + Math.sin(t * 7) * 0.18;
-    campfireData.flame.rotation.y = t * 0.9;
-    campfireData.fireLight.intensity = 2.1 + Math.sin(t * 9) * 0.45;
+  // If tween ended, we still need to set zone exactly once:
+  // (we do it by checking inTransit flip)
+  // To keep it clean, do this:
+  if (!camTween && inTransit === false) {
+    // nothing
   }
 
-  // torch flicker
-  torchFlames.forEach((tf, i) => {
-    tf.flame.scale.y = 0.95 + Math.sin(t * 8 + i) * 0.12;
-    tf.light.intensity = 1.05 + Math.sin(t * 10 + tf.seed) * 0.20;
+  // Campfire + torches flicker
+  scene.traverse((o) => {
+    if (o.userData?.fire) {
+      const { flame, fireLight } = o.userData.fire;
+      flame.scale.y = 0.92 + Math.sin(t * 7) * 0.14;
+      flame.rotation.y = t * 0.85;
+      fireLight.intensity = 2.0 + Math.sin(t * 9) * 0.35;
+    }
+    if (o.userData?.torch) {
+      o.userData.torch.light.intensity = 1.05 + Math.sin(t * 10 + o.position.x) * 0.18;
+    }
   });
 
-  // products idle (shop only visually, but safe always)
+  // Product idle
   productMeshes.forEach((m, i) => {
     m.rotation.y = t * 0.6 + i * 0.25;
     m.position.y = 1.58 + Math.sin(t * 1.6 + i) * 0.03;
@@ -893,14 +1219,126 @@ function animate() {
   renderer.render(scene, camera);
 }
 
-/* -------------------- BOOT -------------------- */
-renderer.domElement.addEventListener("pointerdown", onPointerDown);
-renderer.domElement.addEventListener("pointermove", onPointerMove);
-window.addEventListener("resize", onResize);
+/* Fix zone switching after tween (no “null” bug) */
+(function patchZoneSet() {
+  const originalMove = moveCameraTo;
+  window.__pyroMove = originalMove;
 
-onResize();
-setZoneUI("home");
-camera.position.copy(CAMERA_POINTS.home.pos);
-camera.lookAt(CAMERA_POINTS.home.look);
+  // wrap moveCameraTo to store destination safely
+  let lastDest = "home";
+  function wrapped(zoneName) {
+    lastDest = zoneName;
+    originalMove(zoneName);
+    if (camTween) camTween.toZone = zoneName;
+  }
+  // replace function reference used by buttons/hotspots
+  // (we must rebind the handlers too)
+  // easiest: overwrite global name
+  // eslint-disable-next-line no-global-assign
+  moveCameraTo = wrapped;
 
-animate();
+  if (btnBack) btnBack.onclick = () => moveCameraTo("home");
+  if (homeGlow) homeGlow.onclick = () => moveCameraTo("home");
+
+  // hook into tween completion by checking distance
+  const _v = new THREE.Vector3();
+  const _oldAnimate = animate;
+  // no further patch; we’ll set zone when we are close enough:
+  // (done below in a small override inside requestAnimationFrame)
+})();
+
+/* Proper tween completion zone set (simple + reliable) */
+const _destPos = new THREE.Vector3();
+(function tweenFinishWatcher(){
+  const old = animate;
+  // overwrite animate with a wrapper
+  // eslint-disable-next-line no-global-assign
+  animate = function(){
+    requestAnimationFrame(animate);
+    if (!renderer || !scene || !camera) return;
+
+    const t = performance.now() * 0.001;
+
+    // (copy the important parts from above, but we already called old...)
+    // To avoid double-render, we won’t call old. Instead, keep the earlier animate.
+  };
+})();
+
+/* ---- IMPORTANT NOTE ----
+   The watcher above is intentionally not used.
+   The original animate() already works visually,
+   BUT we need a correct “zone set” on arrival.
+
+   EASIEST FIX: do zone set when close to destination inside tween:
+   (We do it by storing destination on camTween, and setting zone right before clearing.)
+*/
+
+/* Replace animate with the final correct version */
+(function finalAnimate(){
+  const _tmpLook2 = new THREE.Vector3();
+  // eslint-disable-next-line no-global-assign
+  animate = function animateFinal(){
+    requestAnimationFrame(animateFinal);
+    if (!renderer || !scene || !camera) return;
+
+    const t = performance.now() * 0.001;
+
+    _clouds.forEach((c) => {
+      c.position.x += c.userData.vx * 0.01;
+      if (c.position.x > 60) c.position.x = -60;
+    });
+
+    _fireflies.forEach((pts) => {
+      const a = pts.geometry.attributes.position;
+      for (let i = 0; i < a.count; i++) {
+        const ix = i * 3;
+        a.array[ix + 1] += Math.sin(t * 2 + i) * 0.0015;
+        a.array[ix + 0] += Math.cos(t * 1.5 + i) * 0.0010;
+      }
+      a.needsUpdate = true;
+    });
+
+    _animals.forEach((an, i) => {
+      const ud = an.userData;
+      ud.t += 0.008 * ud.speed;
+      an.position.x = ud.center.x + Math.cos(ud.t + i) * ud.radius;
+      an.position.z = ud.center.z + Math.sin(ud.t + i) * ud.radius;
+      an.rotation.y = -(ud.t + i);
+    });
+
+    if (camTween) {
+      const now = performance.now();
+      const u = Math.min(1, (now - camTween.t0) / camTween.dur);
+      const e = easeInOutCubic(u);
+
+      camera.position.lerpVectors(camTween.fromPos, camTween.toPos, e);
+      _tmpLook2.lerpVectors(camTween.fromLook, camTween.toLook, e);
+      camera.lookAt(_tmpLook2);
+
+      if (u >= 1) {
+        setZone(camTween.toZone || "home");
+        camTween = null;
+        inTransit = false;
+      }
+    }
+
+    scene.traverse((o) => {
+      if (o.userData?.fire) {
+        const { flame, fireLight } = o.userData.fire;
+        flame.scale.y = 0.92 + Math.sin(t * 7) * 0.14;
+        flame.rotation.y = t * 0.85;
+        fireLight.intensity = 2.0 + Math.sin(t * 9) * 0.35;
+      }
+      if (o.userData?.torch) {
+        o.userData.torch.light.intensity = 1.05 + Math.sin(t * 10 + o.position.x) * 0.18;
+      }
+    });
+
+    productMeshes.forEach((m, i) => {
+      m.rotation.y = t * 0.6 + i * 0.25;
+      m.position.y = 1.58 + Math.sin(t * 1.6 + i) * 0.03;
+    });
+
+    renderer.render(scene, camera);
+  };
+})();
