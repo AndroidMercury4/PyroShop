@@ -331,7 +331,8 @@ function init3D() {
   addHomeClickBox("blog", new THREE.Vector3(10, 1.8, 0), new THREE.Vector3(8, 5, 8));
   addHomeClickBox("about", new THREE.Vector3(0, 1.6, -14), new THREE.Vector3(7, 4, 7));
   addHomeClickBox("checkout", new THREE.Vector3(3.2, 0.9, 0.8), new THREE.Vector3(4, 3, 4));
-
+  addHomeWayfinding();
+   
   // Shop products (ONLY ACTIVE IN SHOP)
    addShopProducts(cabin);
 
@@ -725,6 +726,44 @@ function addHomeClickBox(zone, center, sizeVec3) {
   box.userData = { type: "homeBox", zone };
   scene.add(box);
   homeClickables.push(box);
+}
+
+function addHomeWayfinding() {
+  const lookTarget = new THREE.Vector3(0, 1.25, 0);
+  const baseMat = new THREE.MeshStandardMaterial({ color: 0x0b121f, roughness: 0.95 });
+  const poleMat = new THREE.MeshStandardMaterial({ color: 0x111827, roughness: 0.9 });
+
+  const markers = [
+    { label: "SHOP", color: 0x7aa2ff, pos: new THREE.Vector3(-5.8, 0, 1.0) },
+    { label: "LIBRARY", color: 0x9bffcf, pos: new THREE.Vector3(5.8, 0, 1.0) },
+    { label: "ABOUT", color: 0x9bffcf, pos: new THREE.Vector3(0, 0, -6.5) },
+    { label: "CHECKOUT", color: 0xffb86b, pos: new THREE.Vector3(2.4, 0, 1.2) },
+  ];
+
+  markers.forEach((m) => {
+    const g = new THREE.Group();
+
+    const base = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.26, 0.18, 12), baseMat);
+    base.position.y = 0.09;
+    g.add(base);
+
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.1, 1.1, 12), poleMat);
+    pole.position.y = 0.55;
+    g.add(pole);
+
+    const sign = neonLabel(m.label, m.color);
+    sign.scale.set(0.55, 0.55, 0.55);
+    sign.position.set(0, 1.1, 0);
+    sign.lookAt(lookTarget);
+    g.add(sign);
+
+    const light = new THREE.PointLight(m.color, 0.4, 6);
+    light.position.set(0, 1.1, 0);
+    g.add(light);
+
+    g.position.copy(m.pos);
+    scene.add(g);
+  });
 }
 
 function addShopProducts(cabinGroup) {
