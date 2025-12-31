@@ -740,25 +740,74 @@ function addAnimalWalkers() {
 function createCabin() {
   const g = new THREE.Group();
   const wood = new THREE.MeshStandardMaterial({ color: 0x2b2a2f, roughness: 0.95 });
-  const roof = new THREE.MeshStandardMaterial({ color: 0x151a2a, roughness: 0.95 });
+  const roof = new THREE.MeshStandardMaterial({ color: 0x151a2a, roughness: 0.9, metalness: 0.08 });
+  const plank = new THREE.MeshStandardMaterial({ color: 0x1d2436, roughness: 0.85, metalness: 0.05 });
   const innerWallMat = new THREE.MeshStandardMaterial({ color: 0x121824, roughness: 0.9 });
-  const floorMat = new THREE.MeshStandardMaterial({ color: 0x0f1420, roughness: 0.95 });
-   
-  const wallThickness = 0.35;
+
+  // Darker interior flooring with subtle plank bands
+  const floorCanvas = document.createElement("canvas");
+  floorCanvas.width = 256; floorCanvas.height = 256;
+  const fctx = floorCanvas.getContext("2d");
+  fctx.fillStyle = "#060910";
+  fctx.fillRect(0, 0, 256, 256);
+  fctx.fillStyle = "#0b111d";
+  for (let i = 0; i < 10; i++) {
+    fctx.fillRect(0, i * 26, 256, 6);
+  }
+  fctx.fillStyle = "rgba(122,162,255,0.12)";
+  fctx.fillRect(0, 0, 256, 256);
+  const floorTex = new THREE.CanvasTexture(floorCanvas);
+  floorTex.wrapS = floorTex.wrapT = THREE.RepeatWrapping;
+  floorTex.repeat.set(4, 4);
+  const floorMat = new THREE.MeshStandardMaterial({ color: 0x0a0f16, roughness: 0.95, map: floorTex });
+
   const W = 6.0, H = 3.2, D = 4.6;
 
-  const back = new THREE.Mesh(new THREE.BoxGeometry(W, H, wallThickness), wood);
-  back.position.set(0, H / 2, -D / 2);
-  g.add(back);
+  const logSpacing = 0.34;
+  const rows = Math.ceil(H / logSpacing);
 
-  const left = new THREE.Mesh(new THREE.BoxGeometry(wallThickness, H, D), wood);
-  left.position.set(-W / 2, H / 2, 0);
-  g.add(left);
+  const makeLog = (length, axis) => {
+    const radius = 0.2 + Math.random() * 0.05;
+    const geo = new THREE.CylinderGeometry(radius * 0.94, radius * 1.06, length, 12);
+    const mesh = new THREE.Mesh(geo, wood);
+    mesh.rotation.y = (Math.random() - 0.5) * 0.08;
+    if (axis === "x") mesh.rotation.z = Math.PI / 2 + (Math.random() - 0.5) * 0.04;
+    if (axis === "z") mesh.rotation.x = Math.PI / 2 + (Math.random() - 0.5) * 0.04;
+    return mesh;
+  };
 
-  const right = new THREE.Mesh(new THREE.BoxGeometry(wallThickness, H, D), wood);
-  right.position.set(W / 2, H / 2, 0);
-  g.add(right);
-   
+ // Primary stacked logs
+  for (let i = 0; i < rows; i++) {
+    const y = logSpacing * 0.5 + i * logSpacing;
+
+    const backLog = makeLog(W + 0.4, "x");
+    backLog.position.set(0, y, -D / 2 + 0.16);
+    g.add(backLog);
+
+    const leftLog = makeLog(D + 0.4, "z");
+    leftLog.position.set(-W / 2 - 0.04, y, 0);
+    g.add(leftLog);
+
+    const rightLog = makeLog(D + 0.4, "z");
+    rightLog.position.set(W / 2 + 0.04, y, 0);
+    g.add(rightLog);
+
+    // Corner overlap caps
+    const capLen = 0.9;
+    const capOffsets = [
+      { x: -W / 2 - 0.12, z: -D / 2 + 0.06 },
+      { x: W / 2 + 0.12, z: -D / 2 + 0.06 },
+      { x: -W / 2 - 0.12, z: D / 2 - 0.06 },
+      { x: W / 2 + 0.12, z: D / 2 - 0.06 },
+    ];
+    capOffsets.forEach(({ x, z }) => {
+      const cap = makeLog(capLen, "z");
+      cap.position.set(x, y, z);
+      cap.rotation.x += (Math.random() - 0.5) * 0.05;
+      g.add(cap);
+    });
+  }
+
   // Interior floor and lining so the open front reveals depth
   const floor = new THREE.Mesh(new THREE.BoxGeometry(W - 0.4, 0.14, D - 0.4), floorMat);
   floor.position.set(0, 0.07, 0);
@@ -777,18 +826,48 @@ function createCabin() {
   g.add(rightInner);
 
   // Interior glow to light signage/shelves
-  const warmFill = new THREE.PointLight(0x9bffcf, 0.9, 10);
-  warmFill.position.set(0, 2.4, 0.4);
+  const warmFill = new THREE.PointLight(0xffb479, 1.1, 11);
+  warmFill.position.set(0, 2.2, 0.4);
   g.add(warmFill);
 
-  const roofMesh = new THREE.Mesh(new THREE.ConeGeometry(4.2, 2.6, 4), roof);
-  roofMesh.rotation.y = Math.PI / 4;
-  roofMesh.position.set(0, H + 1.0, 0);
-  g.add(roofMesh);
+ // Layered plank roof and ridge
+  const ridgeY = H + 1.35;
+  const tilt = 0.62;
+  const plankDepth = 0.34;
+  const plankCount = 9;
+
+  for (let side = -1; side <= 1; side += 2) {
+    for (let i = 0; i < plankCount; i++) {
+      const zDist = 0.18 + i * plankDepth;
+      const y = ridgeY - Math.tan(tilt) * zDist;
+      const slat = new THREE.Mesh(new THREE.BoxGeometry(W + 1.2, 0.08, plankDepth + 0.08), plank);
+      slat.position.set(0, y, zDist * side);
+      slat.rotation.x = -tilt * side + (Math.random() - 0.5) * 0.02;
+      g.add(slat);
+    }
+  }
+
+  const ridgeBeam = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, W + 1.0, 12), roof);
+  ridgeBeam.rotation.z = Math.PI / 2;
+  ridgeBeam.position.set(0, ridgeY + 0.06, 0);
+  g.add(ridgeBeam);
+
+  // Porch overhang and posts
+  const porchRoof = new THREE.Mesh(new THREE.BoxGeometry(W * 0.7, 0.08, 1.4), plank);
+  porchRoof.position.set(0, H + 0.62, D / 2 + 0.7);
+  porchRoof.rotation.x = -0.18;
+  g.add(porchRoof);
+
+  const postSpacing = 2.8;
+  for (let px of [-postSpacing / 2, postSpacing / 2]) {
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.18, 1.5, 12), wood);
+    post.position.set(px, 0.75, D / 2 + 0.6);
+    g.add(post);
+  }
 
   // Neon label above
   const label = neonLabel("SHOP", 0x7aa2ff);
-  label.position.set(0, 4.1, 2.35);
+  label.position.set(0, 3.95, 1.95);
   label.rotation.y = Math.PI;
   g.add(label);
 
