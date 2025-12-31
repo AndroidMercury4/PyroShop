@@ -171,6 +171,10 @@ function moveCameraTo(zoneName) {
   if (panel) panel.hidden = true;
   if (basketPanel) basketPanel.hidden = true;
   if (hoverTip) hoverTip.hidden = true;
+  if (bookModal) {
+    bookModal.hidden = true;
+    openBook = null;
+  }
 
   camTween = {
     t0: performance.now(),
