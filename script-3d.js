@@ -579,13 +579,51 @@ function createCabin() {
 function createLibrary() {
   const g = new THREE.Group();
 
+  const stoneMat = new THREE.MeshStandardMaterial({ color: 0x0f1424, roughness: 1.0 });
+  const trimMat = new THREE.MeshStandardMaterial({ color: 0x161d30, roughness: 0.9 });
+
+  // Rocky base platform
+  const base = new THREE.Mesh(new THREE.BoxGeometry(8.4, 0.35, 2.8), new THREE.MeshStandardMaterial({ color: 0x0c101a, roughness: 1.0 }));
+  base.position.set(0, 0.175, 0.1);
+  g.add(base);
+
   // Stone wall
   const wall = new THREE.Mesh(
     new THREE.BoxGeometry(7.0, 4.3, 1.2),
-    new THREE.MeshStandardMaterial({ color: 0x0f1424, roughness: 1.0 })
+    stoneMat
   );
   wall.position.set(0, 2.15, 0);
   g.add(wall);
+   
+  // Stone trim + inset arches
+  const band = new THREE.Mesh(new THREE.BoxGeometry(7.2, 0.14, 0.28), trimMat);
+  band.position.set(0, 0.72, 0.61);
+  g.add(band);
+
+  const cornice = new THREE.Mesh(new THREE.BoxGeometry(7.4, 0.18, 0.32), trimMat);
+  cornice.position.set(0, 3.72, 0.62);
+  g.add(cornice);
+
+  function addArch(x) {
+    const archGroup = new THREE.Group();
+    const pillar = new THREE.BoxGeometry(0.32, 1.6, 0.14);
+    const postL = new THREE.Mesh(pillar, trimMat);
+    postL.position.set(x - 0.62, 1.52, 0.62);
+    const postR = new THREE.Mesh(pillar, trimMat);
+    postR.position.set(x + 0.62, 1.52, 0.62);
+
+    const lintel = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.26, 0.14), trimMat);
+    lintel.position.set(x, 2.5, 0.62);
+
+    const archTop = new THREE.Mesh(new THREE.TorusGeometry(0.75, 0.06, 12, 24, Math.PI), trimMat);
+    archTop.rotation.x = Math.PI / 2;
+    archTop.position.set(x, 2.66, 0.62);
+
+    archGroup.add(postL, postR, lintel, archTop);
+    g.add(archGroup);
+  }
+
+  [-2.4, 0, 2.4].forEach(addArch);
 
   // shelves
   for (let r = 0; r < 4; r++) {
@@ -602,6 +640,19 @@ function createLibrary() {
   label.position.set(0, 4.2, 0.75);
   g.add(label);
 
+     // Ambient archive lights
+  const ambientAccent = new THREE.PointLight(0x7aa2ff, 0.32, 6);
+  ambientAccent.position.set(0, 4.5, 0.4);
+  g.add(ambientAccent);
+
+  const shelfGlowL = new THREE.PointLight(0x9bffcf, 0.24, 4.5);
+  shelfGlowL.position.set(-2.6, 2.6, 0.6);
+  g.add(shelfGlowL);
+
+  const shelfGlowR = shelfGlowL.clone();
+  shelfGlowR.position.set(2.6, 2.6, 0.6);
+  g.add(shelfGlowR);
+
   // Books (children)
   const bookMat = new THREE.MeshStandardMaterial({ color: 0x7aa2ff, roughness: 0.7, emissive: 0x0b1020 });
   let bi = 0;
@@ -616,6 +667,32 @@ function createLibrary() {
       bi++;
     }
   }
+
+     // Flanking oak trees
+  function createOakTree() {
+    const tree = new THREE.Group();
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.42, 2.8, 12), new THREE.MeshStandardMaterial({ color: 0x3a281a, roughness: 0.9 }));
+    trunk.position.set(0, 1.4, 0);
+    tree.add(trunk);
+
+    const crown = new THREE.Mesh(new THREE.SphereGeometry(1.6, 14, 12), new THREE.MeshStandardMaterial({ color: 0x163626, roughness: 0.8 }));
+    crown.position.set(0, 3.5, 0);
+    tree.add(crown);
+
+    const upper = new THREE.Mesh(new THREE.SphereGeometry(1.1, 14, 12), new THREE.MeshStandardMaterial({ color: 0x1d422d, roughness: 0.8 }));
+    upper.position.set(0.2, 4.6, -0.15);
+    tree.add(upper);
+
+    return tree;
+  }
+
+  const leftOak = createOakTree();
+  leftOak.position.set(-4.2, 0, -0.35);
+  g.add(leftOak);
+
+  const rightOak = createOakTree();
+  rightOak.position.set(4.2, 0, -0.35);
+  g.add(rightOak);
 
   return g;
 }
