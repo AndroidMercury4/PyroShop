@@ -29,14 +29,14 @@
         <div class="muted tiny" id="zoneLabel">Home</div>
       </div>
 
+      <div class="hud-center">
+        <button class="btn ghost glow" id="btnHome" title="Back to Home">Home</button>
+      </div>
+
       <div class="hud-right">
-        <button class="btn ghost" id="btnBack" title="Back to Home">← Back</button>
         <button class="btn ghost" id="btnBasket">Basket</button>
       </div>
     </header>
-
-    <!-- Bottom home button (requested: middle bottom, slight glow) -->
-    <button id="homeGlow" class="homeGlow" title="Home">Home</button>
 
     <!-- Product panel -->
     <div class="product-panel" id="productPanel" hidden>
@@ -44,7 +44,9 @@
         <div class="product-left">
           <div class="muted tiny">Selected item</div>
           <div class="product-title" id="productTitle">Product</div>
+
           <img id="productImg" alt="Product image" />
+
           <div class="muted" id="productDesc">Description</div>
           <div class="muted tiny" id="productPrice">£0.00</div>
         </div>
@@ -76,11 +78,11 @@
       </div>
     </div>
 
-    <!-- Book Viewer (fullscreen modal) -->
+    <!-- Book Viewer (fullscreen) -->
     <div id="bookModal" class="bookModal" hidden>
-      <div class="bookShell">
-        <button id="bookClose" class="bookClose" aria-label="Close book">← Back</button>
+      <button id="bookClose" class="bookClose" aria-label="Close book">← Back</button>
 
+      <div class="bookShell">
         <div class="bookHeader">
           <div id="bookTitle" class="bookTitle">Book Title</div>
           <div id="bookMeta" class="bookMeta">Date</div>
