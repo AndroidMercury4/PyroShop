@@ -230,6 +230,8 @@ const blogClickables = []; // books active when currentZone === "blog"
 const alwaysClickables = []; // (optional) none for now
 
 const productMeshes = [];
+const neonPulseMeshes = [];
+const libraryParticleSystems = [];
 
 const cloudSprites = [];
 let fireflyPoints = null;
@@ -877,8 +879,8 @@ function createCabin() {
 function createLibrary() {
   const g = new THREE.Group();
 
-  const stoneMat = new THREE.MeshStandardMaterial({ color: 0x0f1424, roughness: 1.0 });
-  const trimMat = new THREE.MeshStandardMaterial({ color: 0x161d30, roughness: 0.9 });
+  const stoneMat = new THREE.MeshStandardMaterial({ color: 0x0f1424, roughness: 1.0, emissive: 0x121a2d, emissiveIntensity: 0.14 });
+  const trimMat = new THREE.MeshStandardMaterial({ color: 0x161d30, roughness: 0.9, emissive: 0x0d1624, emissiveIntensity: 0.18 });
 
   // Rocky base platform
   const base = new THREE.Mesh(new THREE.BoxGeometry(8.4, 0.35, 2.8), new THREE.MeshStandardMaterial({ color: 0x0c101a, roughness: 1.0 }));
@@ -937,6 +939,8 @@ function createLibrary() {
   const label = neonLabel("LIBRARY", 0x9bffcf);
   label.position.set(0, 4.2, 0.75);
   g.add(label);
+  label.userData.neonPulse = { base: label.material.emissiveIntensity || 0.55, amp: 0.08, speed: 1.4, phase: Math.random() * Math.PI * 2 };
+  neonPulseMeshes.push(label);
 
      // Ambient archive lights
   const ambientAccent = new THREE.PointLight(0x7aa2ff, 0.32, 6);
@@ -950,6 +954,24 @@ function createLibrary() {
   const shelfGlowR = shelfGlowL.clone();
   shelfGlowR.position.set(2.6, 2.6, 0.6);
   g.add(shelfGlowR);
+
+     // Focused shelf wash + warm floor fill
+  const shelfSpot = new THREE.SpotLight(0x9bffcf, 0.38, 9, 0.7, 0.55);
+  shelfSpot.position.set(0, 4.2, 2.1);
+  shelfSpot.target.position.set(0, 2.1, 0.18);
+  g.add(shelfSpot);
+  g.add(shelfSpot.target);
+
+  const floorFill = new THREE.PointLight(0xffc38a, 0.38, 5.5);
+  floorFill.position.set(0, 0.32, 0.32);
+  g.add(floorFill);
+
+  // Rim light to read arches at night
+  const archRim = new THREE.SpotLight(0x9bffcf, 0.22, 7, 0.85, 0.8);
+  archRim.position.set(-3.8, 3.0, 2.6);
+  archRim.target.position.set(-3.0, 2.3, 0.45);
+  g.add(archRim);
+  g.add(archRim.target);
 
   // Books (children)
   const bookMat = new THREE.MeshStandardMaterial({ color: 0x7aa2ff, roughness: 0.7, emissive: 0x0b1020 });
@@ -991,6 +1013,40 @@ function createLibrary() {
   const rightOak = createOakTree();
   rightOak.position.set(4.2, 0, -0.35);
   g.add(rightOak);
+
+    // Light dust motes drifting through shelf light cones
+  const particleCount = 70;
+  const particlePositions = new Float32Array(particleCount * 3);
+  const particleOffsets = new Float32Array(particleCount);
+
+  for (let i = 0; i < particleCount; i++) {
+    particlePositions[i * 3 + 0] = -2.6 + Math.random() * 5.2;
+    particlePositions[i * 3 + 1] = 1.0 + Math.random() * 2.6;
+    particlePositions[i * 3 + 2] = 0.38 + Math.random() * 0.35;
+    particleOffsets[i] = Math.random() * Math.PI * 2;
+  }
+
+  const particleGeo = new THREE.BufferGeometry();
+  particleGeo.setAttribute("position", new THREE.BufferAttribute(particlePositions, 3));
+
+  const particleTex = new THREE.CanvasTexture(makeGlowSprite());
+  particleTex.colorSpace = THREE.SRGBColorSpace;
+
+  const particleMat = new THREE.PointsMaterial({
+    size: 0.08,
+    map: particleTex,
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    color: 0xfff0c7,
+    opacity: 0.7
+  });
+
+  const libraryDust = new THREE.Points(particleGeo, particleMat);
+  libraryDust.userData.basePositions = new Float32Array(particlePositions);
+  libraryDust.userData.offsets = particleOffsets;
+  libraryParticleSystems.push(libraryDust);
+  g.add(libraryDust);
 
   return g;
 }
@@ -1346,7 +1402,36 @@ function animate() {
     m.position.y = 1.58 + Math.sin(t * 1.6 + i) * 0.03;
   });
 
-    cloudSprites.forEach((c, i) => {
+  neonPulseMeshes.forEach((m) => {
+    const pulse = m.userData?.neonPulse;
+    if (!pulse || !m.material) return;
+    const base = pulse.base ?? 0.55;
+    const amp = pulse.amp ?? 0.06;
+    const speed = pulse.speed ?? 1.2;
+    const phase = pulse.phase ?? 0;
+    m.material.emissiveIntensity = base + Math.sin(t * speed + phase) * amp;
+  });
+
+  libraryParticleSystems.forEach((sys) => {
+    const pos = sys.geometry.attributes.position;
+    const base = sys.userData.basePositions;
+    const offsets = sys.userData.offsets;
+    if (!base || !offsets) return;
+
+    for (let i = 0; i < pos.count; i++) {
+      const bx = base[i * 3 + 0];
+      const by = base[i * 3 + 1];
+      const bz = base[i * 3 + 2];
+      const o = offsets[i];
+
+      pos.setX(i, bx + Math.sin(t * 0.35 + o) * 0.08);
+      pos.setY(i, by + Math.sin(t * 0.6 + o) * 0.12 + Math.cos(t * 0.25 + o) * 0.05);
+      pos.setZ(i, bz + Math.cos(t * 0.2 + o) * 0.05);
+    }
+    pos.needsUpdate = true;
+  });
+
+  cloudSprites.forEach((c, i) => {
     c.position.x += c.userData.speed * 20 * 0.016;
     c.position.z += c.userData.speed * 16 * 0.016;
     if (c.position.x > 90) c.position.x = -90;
