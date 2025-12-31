@@ -1,106 +1,100 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>PyroShop World</title>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PyroShop World</title>
 
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap"
-      rel="stylesheet"
-    />
-    <link rel="stylesheet" href="./style.css" />
-    <link rel="icon" href="data:," />
-  </head>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
 
-  <body>
-    <!-- 3D WORLD -->
-    <div id="scene"></div>
+  <link rel="stylesheet" href="./style.css">
+  <link rel="icon" href="data:,">
+</head>
 
-    <!-- Hover tooltip (books only) -->
-    <div id="hoverTip" class="hoverTip" hidden></div>
+<body>
+  <!-- 3D WORLD -->
+  <div id="scene"></div>
 
-    <!-- HUD -->
-    <header class="hud">
-      <div class="hud-left">
-        <div class="chip">PyroShop</div>
-        <div class="muted tiny" id="zoneLabel">Home</div>
+  <!-- Hover tooltip (books) -->
+  <div id="hoverTip" class="hoverTip" hidden></div>
+
+  <!-- HUD -->
+  <header class="hud">
+    <div class="hud-left">
+      <div class="chip">PyroShop</div>
+      <div class="muted tiny" id="zoneLabel">Home</div>
+    </div>
+    <div class="hud-right">
+      <button class="btn ghost" id="btnHome">Home</button>
+      <button class="btn ghost" id="btnBasket">Basket</button>
+    </div>
+  </header>
+
+  <!-- Product panel -->
+  <div class="product-panel" id="productPanel" hidden>
+    <div class="product-panel-inner">
+      <div class="product-left">
+        <div class="muted tiny">Selected item</div>
+        <div class="product-title" id="productTitle">Product</div>
+
+        <img id="productImg" alt="Product image" />
+
+        <div class="muted" id="productDesc">Description</div>
+        <div class="muted tiny" id="productPrice">£0.00</div>
       </div>
 
-      <div class="hud-center">
-        <button class="btn ghost glow" id="btnHome" title="Back to Home">Home</button>
-      </div>
-
-      <div class="hud-right">
-        <button class="btn ghost" id="btnBasket">Basket</button>
-      </div>
-    </header>
-
-    <!-- Product panel -->
-    <div class="product-panel" id="productPanel" hidden>
-      <div class="product-panel-inner">
-        <div class="product-left">
-          <div class="muted tiny">Selected item</div>
-          <div class="product-title" id="productTitle">Product</div>
-
-          <img id="productImg" alt="Product image" />
-
-          <div class="muted" id="productDesc">Description</div>
-          <div class="muted tiny" id="productPrice">£0.00</div>
-        </div>
-
-        <div class="panel-actions">
-          <button class="btn primary" id="addToBasket">Add to basket</button>
-          <button class="btn ghost" id="closePanel">Close</button>
-        </div>
+      <div class="panel-actions">
+        <button class="btn primary" id="addToBasket">Add to basket</button>
+        <button class="btn ghost" id="closePanel">Close</button>
       </div>
     </div>
+  </div>
 
-    <!-- Basket panel -->
-    <div class="basket-panel" id="basketPanel" hidden>
-      <div class="basket-inner">
-        <div class="basket-head">
-          <div>
-            <div class="muted tiny">Your basket</div>
-            <div class="product-title">Basket</div>
-          </div>
-          <button class="btn ghost" id="closeBasket">Close</button>
+  <!-- Basket panel -->
+  <div class="basket-panel" id="basketPanel" hidden>
+    <div class="basket-inner">
+      <div class="basket-head">
+        <div>
+          <div class="muted tiny">Your basket</div>
+          <div class="product-title">Basket</div>
         </div>
+        <button class="btn ghost" id="closeBasket">Close</button>
+      </div>
 
-        <div id="basketItems" class="basket-items"></div>
+      <div id="basketItems" class="basket-items"></div>
 
-        <div class="basket-footer">
-          <div class="muted">Total: <strong id="basketTotal">£0.00</strong></div>
-          <button class="btn primary" id="checkoutBtn" disabled>Checkout (later)</button>
-        </div>
+      <div class="basket-footer">
+        <div class="muted">Total: <strong id="basketTotal">£0.00</strong></div>
+        <button class="btn primary" id="checkoutBtn" disabled>Checkout (later)</button>
       </div>
     </div>
+  </div>
 
-    <!-- Book Viewer (fullscreen) -->
-    <div id="bookModal" class="bookModal" hidden>
-      <button id="bookClose" class="bookClose" aria-label="Close book">← Back</button>
+  <!-- Book Viewer (fullscreen) -->
+  <div id="bookModal" class="bookModal" hidden>
+    <button id="bookClose" class="bookClose" aria-label="Close book">← Back</button>
 
-      <div class="bookShell">
-        <div class="bookHeader">
-          <div id="bookTitle" class="bookTitle">Book Title</div>
-          <div id="bookMeta" class="bookMeta">Date</div>
-        </div>
+    <div class="bookShell">
+      <div class="bookHeader">
+        <div id="bookTitle" class="bookTitle">Book Title</div>
+        <div id="bookMeta" class="bookMeta">Date</div>
+      </div>
 
-        <div class="bookPages">
-          <div id="bookPage" class="bookPage">
-            <div id="bookPageText"></div>
-          </div>
-        </div>
-
-        <div class="bookControls">
-          <button id="bookPrev" class="btn ghost">← Prev</button>
-          <button id="bookNext" class="btn ghost">Next →</button>
+      <div class="bookPages">
+        <div id="bookPage" class="bookPage">
+          <div id="bookPageText"></div>
         </div>
       </div>
-    </div>
 
-    <script type="module" src="./script-3d.js"></script>
-  </body>
+      <div class="bookControls">
+        <button id="bookPrev" class="btn ghost">← Prev</button>
+        <button id="bookNext" class="btn ghost">Next →</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="./script-3d.js"></script>
+</body>
 </html>
