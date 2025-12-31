@@ -96,6 +96,9 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);overflow:h
   backdrop-filter: blur(10px);
   display:flex; align-items:center; justify-content:center;
 }
+.bookModal[hidden]{
+  display:none !important;
+}
 .bookShell{
   width:min(860px, calc(100vw - 28px));
   background:rgba(11,16,32,.92);
