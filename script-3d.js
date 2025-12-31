@@ -227,6 +227,10 @@ const alwaysClickables = []; // (optional) none for now
 
 const productMeshes = [];
 
+const cloudSprites = [];
+let fireflyPoints = null;
+const animalWalkers = [];
+
 let selectedProduct = null;
 
 const products = [
@@ -266,6 +270,8 @@ function init3D() {
   sceneHost.innerHTML = "";
   sceneHost.appendChild(renderer.domElement);
 
+  addSkyDome();
+
   // Lighting
   scene.add(new THREE.AmbientLight(0xffffff, 0.30));
 
@@ -277,21 +283,10 @@ function init3D() {
   rim.position.set(-16, 12, -8);
   scene.add(rim);
 
-  // Moon (visual)
-  const moon = new THREE.Mesh(
-    new THREE.SphereGeometry(1.6, 24, 18),
-    new THREE.MeshStandardMaterial({ color: 0xe6f0ff, emissive: 0xa8c6ff, emissiveIntensity: 0.5, roughness: 0.95 })
-  );
-  moon.position.set(18, 16, -26);
-  scene.add(moon);
-
   // Ground
-  const ground = new THREE.Mesh(
-    new THREE.PlaneGeometry(300, 300),
-    new THREE.MeshStandardMaterial({ color: 0x0b1511, roughness: 1.0 })
-  );
-  ground.rotation.x = -Math.PI / 2;
+  const ground = createGrassGround();
   scene.add(ground);
+  scatterGrassTufts();
 
   // Simple forest ring
   addForestRing();
@@ -305,6 +300,8 @@ function init3D() {
   scene.add(campfire);
 
   addBenches();
+  addFireflies();
+  addAnimalWalkers();
 
   // Checkout kiosk (near campfire, right side)
   const checkout = createCheckoutKiosk();
@@ -355,6 +352,139 @@ function init3D() {
 }
 
 /* -------------------- BUILD HELPERS -------------------- */
+function addSkyDome() {
+  const skyCanvas = document.createElement("canvas");
+  skyCanvas.width = skyCanvas.height = 1024;
+  const ctx = skyCanvas.getContext("2d");
+
+  const grd = ctx.createRadialGradient(512, 512, 80, 512, 512, 520);
+  grd.addColorStop(0, "#0b0f1d");
+  grd.addColorStop(1, "#05070e");
+  ctx.fillStyle = grd;
+  ctx.fillRect(0, 0, 1024, 1024);
+
+  ctx.fillStyle = "rgba(255,255,255,0.8)";
+  for (let i = 0; i < 2200; i++) {
+    const x = Math.random() * 1024;
+    const y = Math.random() * 1024;
+    const r = Math.random() * 1.3 + 0.2;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  const skyTex = new THREE.CanvasTexture(skyCanvas);
+  skyTex.colorSpace = THREE.SRGBColorSpace;
+  skyTex.wrapS = skyTex.wrapT = THREE.RepeatWrapping;
+
+  const dome = new THREE.Mesh(
+    new THREE.SphereGeometry(140, 48, 32),
+    new THREE.MeshBasicMaterial({ map: skyTex, side: THREE.BackSide, transparent: true, opacity: 0.9, fog: false })
+  );
+  dome.rotation.y = Math.PI * 0.2;
+  scene.add(dome);
+
+  // Moon
+  const moonMat = new THREE.MeshStandardMaterial({
+    color: 0xdde8ff,
+    emissive: 0x9bb7ff,
+    emissiveIntensity: 0.75,
+    roughness: 0.92
+  });
+  const moon = new THREE.Mesh(new THREE.SphereGeometry(1.7, 26, 20), moonMat);
+  moon.position.set(18, 16, -26);
+  scene.add(moon);
+
+  // Slow clouds (sprites)
+  const cloudTex = new THREE.CanvasTexture(makeCloudTexture());
+  cloudTex.colorSpace = THREE.SRGBColorSpace;
+  for (let i = 0; i < 6; i++) {
+    const cloud = new THREE.Sprite(new THREE.SpriteMaterial({ map: cloudTex, color: 0xdde5ff, transparent: true, opacity: 0.45, depthWrite: false }));
+    cloud.scale.set(34 + Math.random() * 18, 18 + Math.random() * 10, 1);
+    cloud.position.set((Math.random() - 0.5) * 120, 32 + Math.random() * 6, (Math.random() - 0.5) * 120);
+    cloud.userData.speed = 0.0015 + Math.random() * 0.0015;
+    cloudSprites.push(cloud);
+    scene.add(cloud);
+  }
+}
+
+function makeCloudTexture() {
+  const c = document.createElement("canvas");
+  c.width = c.height = 256;
+  const ctx = c.getContext("2d");
+  ctx.fillStyle = "rgba(255,255,255,0)";
+  ctx.fillRect(0, 0, 256, 256);
+  ctx.fillStyle = "rgba(255,255,255,0.7)";
+  for (let i = 0; i < 5; i++) {
+    const x = 60 + i * 30 + Math.random() * 20;
+    const y = 120 + Math.random() * 16;
+    ctx.beginPath();
+    ctx.ellipse(x, y, 50 + Math.random() * 36, 26 + Math.random() * 12, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  return c;
+}
+
+function createGrassGround() {
+  const size = 300;
+  const seg = 160;
+  const geo = new THREE.PlaneGeometry(size, size, seg, seg);
+  const colors = [];
+
+  geo.rotateX(-Math.PI / 2);
+
+  const noise = (x, z) => {
+    const n = Math.sin(x * 0.17) + Math.sin(z * 0.19) + Math.sin((x + z) * 0.11);
+    return n * 0.12 + Math.sin(x * 0.05 + z * 0.03) * 0.18;
+  };
+
+  for (let i = 0; i < geo.attributes.position.count; i++) {
+    const x = geo.attributes.position.getX(i);
+    const z = geo.attributes.position.getZ(i);
+    const h = noise(x, z) * 0.35 * Math.exp(-(x * x + z * z) / 3200);
+    geo.attributes.position.setY(i, h);
+
+    const shade = 0.15 + 0.25 * Math.random();
+    const g = 0.35 + 0.35 * Math.random();
+    colors.push(shade, g, shade * 0.8);
+  }
+
+  geo.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
+  geo.computeVertexNormals();
+
+  const mat = new THREE.MeshStandardMaterial({
+    vertexColors: true,
+    roughness: 1.0,
+    metalness: 0.0
+  });
+
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.receiveShadow = true;
+  return mesh;
+}
+
+function scatterGrassTufts() {
+  const bladeGeo = new THREE.ConeGeometry(0.05, 0.35, 6);
+  const baseMat = new THREE.MeshStandardMaterial({ color: 0x2f7a3d, roughness: 0.9, emissive: 0x0c120b, emissiveIntensity: 0.12 });
+
+  for (let i = 0; i < 150; i++) {
+    const g = new THREE.Group();
+    const clusterCount = 5 + Math.floor(Math.random() * 4);
+    for (let j = 0; j < clusterCount; j++) {
+      const blade = new THREE.Mesh(bladeGeo, baseMat.clone());
+      blade.scale.setScalar(0.8 + Math.random() * 0.8);
+      blade.position.set((Math.random() - 0.5) * 0.4, 0, (Math.random() - 0.5) * 0.4);
+      blade.rotation.y = Math.random() * Math.PI * 2;
+      g.add(blade);
+    }
+    const r = 9 + Math.random() * 9;
+    const a = Math.random() * Math.PI * 2;
+    g.position.set(Math.cos(a) * r + (Math.random() - 0.5) * 2, 0, Math.sin(a) * r + (Math.random() - 0.5) * 2);
+    g.rotation.y = Math.random() * Math.PI * 2;
+    scene.add(g);
+  }
+}
+
 function addForestRing() {
   const trunkMat = new THREE.MeshStandardMaterial({ color: 0x2a1f14, roughness: 1.0 });
   const leafMat = new THREE.MeshStandardMaterial({ color: 0x0f3a22, roughness: 1.0 });
@@ -516,6 +646,90 @@ function createCheckoutKiosk() {
 
   g.userData.type = "checkout";
   return g;
+}
+
+function addFireflies() {
+  const count = 90;
+  const positions = new Float32Array(count * 3);
+  const phases = new Float32Array(count);
+  const radii = new Float32Array(count);
+
+  for (let i = 0; i < count; i++) {
+    const r = 6 + Math.random() * 14;
+    const a = Math.random() * Math.PI * 2;
+    const y = 1.0 + Math.random() * 2.5;
+    positions[i * 3 + 0] = Math.cos(a) * r;
+    positions[i * 3 + 1] = y;
+    positions[i * 3 + 2] = Math.sin(a) * r;
+    phases[i] = Math.random() * Math.PI * 2;
+    radii[i] = r;
+  }
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+
+  const sprite = new THREE.CanvasTexture(makeGlowSprite());
+  sprite.colorSpace = THREE.SRGBColorSpace;
+
+  const mat = new THREE.PointsMaterial({
+    size: 0.24,
+    map: sprite,
+    transparent: true,
+    depthWrite: false,
+    color: 0xa6ff9b,
+    blending: THREE.AdditiveBlending
+  });
+
+  const points = new THREE.Points(geo, mat);
+  points.userData.phases = phases;
+  points.userData.radii = radii;
+  fireflyPoints = points;
+  scene.add(points);
+}
+
+function makeGlowSprite() {
+  const c = document.createElement("canvas");
+  c.width = c.height = 64;
+  const ctx = c.getContext("2d");
+  const grd = ctx.createRadialGradient(32, 32, 2, 32, 32, 30);
+  grd.addColorStop(0, "rgba(170,255,155,0.9)");
+  grd.addColorStop(1, "rgba(170,255,155,0)");
+  ctx.fillStyle = grd;
+  ctx.fillRect(0, 0, 64, 64);
+  return c;
+}
+
+function addAnimalWalkers() {
+  const createCritter = (colorHex) => {
+    const g = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.3, 0.6, 6, 12), new THREE.MeshStandardMaterial({ color: colorHex, roughness: 0.8, emissive: 0x0b0f12 }));
+    body.rotation.z = Math.PI / 2;
+    g.add(body);
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.22, 10, 10), new THREE.MeshStandardMaterial({ color: colorHex, roughness: 0.8, emissive: 0x0b0f12 }));
+    head.position.set(0.45, 0, 0);
+    g.add(head);
+
+    const eyeMat = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0x5588ff, emissiveIntensity: 0.4 });
+    const eyeGeo = new THREE.SphereGeometry(0.05, 8, 8);
+    const eyeL = new THREE.Mesh(eyeGeo, eyeMat);
+    eyeL.position.set(0.55, 0.07, 0.08);
+    g.add(eyeL);
+    const eyeR = eyeL.clone();
+    eyeR.position.set(0.55, 0.07, -0.08);
+    g.add(eyeR);
+
+    return g;
+  };
+
+  const addWalker = (radius, height, speed, colorHex, offset) => {
+    const mesh = createCritter(colorHex);
+    mesh.position.y = height;
+    animalWalkers.push({ mesh, radius, speed, offset });
+    scene.add(mesh);
+  };
+
+  addWalker(7.5, 0.22, 0.35, 0x7aa2ff, 0.0);
+  addWalker(6.2, 0.18, 0.48, 0x9bffcf, Math.PI * 0.5);
 }
 
 /* -------------------- BUILDINGS -------------------- */
@@ -1047,6 +1261,36 @@ function animate() {
   productMeshes.forEach((m, i) => {
     m.rotation.y = t * 0.6 + i * 0.25;
     m.position.y = 1.58 + Math.sin(t * 1.6 + i) * 0.03;
+  });
+
+    cloudSprites.forEach((c, i) => {
+    c.position.x += c.userData.speed * 20 * 0.016;
+    c.position.z += c.userData.speed * 16 * 0.016;
+    if (c.position.x > 90) c.position.x = -90;
+    if (c.position.z > 90) c.position.z = -90;
+    c.material.opacity = 0.35 + Math.sin(t * 0.2 + i) * 0.06;
+  });
+
+  if (fireflyPoints) {
+    const pos = fireflyPoints.geometry.attributes.position;
+    const phases = fireflyPoints.userData.phases;
+    const radii = fireflyPoints.userData.radii;
+    for (let i = 0; i < pos.count; i++) {
+      const baseA = phases[i] + t * 0.5;
+      pos.setX(i, Math.cos(baseA) * radii[i]);
+      pos.setZ(i, Math.sin(baseA) * radii[i]);
+      pos.setY(i, 1.0 + Math.sin(t * 2.2 + phases[i]) * 0.6 + (Math.sin(baseA * 2) * 0.25));
+    }
+    pos.needsUpdate = true;
+  }
+
+  animalWalkers.forEach((w, idx) => {
+    const a = t * w.speed + w.offset;
+    const x = Math.cos(a) * w.radius;
+    const z = Math.sin(a) * w.radius;
+    w.mesh.position.set(x, w.mesh.position.y, z);
+    w.mesh.rotation.y = -a + Math.PI / 2;
+    w.mesh.position.y = 0.18 + Math.sin(t * 3 + idx) * 0.02;
   });
 
   renderer.render(scene, camera);
