@@ -18,6 +18,8 @@
   <body>
     <!-- 3D WORLD -->
     <div id="scene"></div>
+
+    <!-- Hover tooltip (books only) -->
     <div id="hoverTip" class="hoverTip" hidden></div>
 
     <!-- HUD -->
@@ -26,12 +28,15 @@
         <div class="chip">PyroShop</div>
         <div class="muted tiny" id="zoneLabel">Home</div>
       </div>
+
       <div class="hud-right">
-        <button class="btn ghost" id="btnBack" hidden>← Back</button>
-        <button class="btn ghost" id="btnHome">Home</button>
+        <button class="btn ghost" id="btnBack" title="Back to Home">← Back</button>
         <button class="btn ghost" id="btnBasket">Basket</button>
       </div>
     </header>
+
+    <!-- Bottom home button (requested: middle bottom, slight glow) -->
+    <button id="homeGlow" class="homeGlow" title="Home">Home</button>
 
     <!-- Product panel -->
     <div class="product-panel" id="productPanel" hidden>
@@ -71,11 +76,11 @@
       </div>
     </div>
 
-    <!-- Book Viewer (fullscreen) -->
+    <!-- Book Viewer (fullscreen modal) -->
     <div id="bookModal" class="bookModal" hidden>
-      <button id="bookClose" class="bookClose" aria-label="Close book">← Back</button>
-
       <div class="bookShell">
+        <button id="bookClose" class="bookClose" aria-label="Close book">← Back</button>
+
         <div class="bookHeader">
           <div id="bookTitle" class="bookTitle">Book Title</div>
           <div id="bookMeta" class="bookMeta">Date</div>
