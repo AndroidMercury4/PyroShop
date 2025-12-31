@@ -120,3 +120,26 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);overflow:h
   white-space:pre-wrap;
 }
 .bookControls{display:flex;justify-content:space-between;margin-top:12px;}
+
+/* Bottom Home control */
+.home-bar{
+  position:fixed;
+  inset:0 0 16px 0;
+  display:flex;
+  justify-content:center;
+  align-items:flex-end;
+  pointer-events:none;
+  z-index:15;
+}
+.home-bar-inner{
+  background:rgba(11,16,32,.55);
+  border:1px solid var(--line);
+  border-radius:14px;
+  padding:8px 12px;
+  box-shadow:0 0 30px rgba(122,162,255,.25), 0 12px 40px rgba(0,0,0,.45);
+  pointer-events:auto;
+}
+.home-btn{
+  min-width:92px;
+  box-shadow:0 0 16px rgba(122,162,255,.35);
+}
