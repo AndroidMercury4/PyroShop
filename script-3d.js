@@ -235,6 +235,10 @@ const products = [
   { id: "p3", name: "Maple Desk Charm", desc: "Minimal charm piece for desk or shelf.", price: 12 },
   { id: "p4", name: "Ash Key Fob", desc: "Simple key fob, durable and light.", price: 9 },
   { id: "p5", name: "Custom Sigil Block", desc: "Commission block — your design, your vibe.", price: 45 },
+  { id: "p6", name: "Workshop Prototype Set", desc: "Placeholder pieces waiting for their final finish.", price: 22 },
+  { id: "p7", name: "Craft Bench Mockups", desc: "Assorted experimental trinkets from the craft table.", price: 14 },
+  { id: "p8", name: "Ethical Bone Study", desc: "Test carvings that will inform a future bonecraft drop.", price: 38 },
+  { id: "p9", name: "Familiar Form Maquette", desc: "Armature and resin guide sculpt for bonecraft commissions.", price: 32 },
 ];
 
 const BOOKS = [
@@ -329,7 +333,7 @@ function init3D() {
   addHomeClickBox("checkout", new THREE.Vector3(3.2, 0.9, 0.8), new THREE.Vector3(4, 3, 4));
 
   // Shop products (ONLY ACTIVE IN SHOP)
-  addShopProducts();
+   addShopProducts(cabin);
 
   // Library books (ONLY ACTIVE IN BLOG)
   registerLibraryBooks(library);
@@ -518,7 +522,9 @@ function createCabin() {
   const g = new THREE.Group();
   const wood = new THREE.MeshStandardMaterial({ color: 0x2b2a2f, roughness: 0.95 });
   const roof = new THREE.MeshStandardMaterial({ color: 0x151a2a, roughness: 0.95 });
-
+  const innerWallMat = new THREE.MeshStandardMaterial({ color: 0x121824, roughness: 0.9 });
+  const floorMat = new THREE.MeshStandardMaterial({ color: 0x0f1420, roughness: 0.95 });
+   
   const wallThickness = 0.35;
   const W = 6.0, H = 3.2, D = 4.6;
 
@@ -533,6 +539,28 @@ function createCabin() {
   const right = new THREE.Mesh(new THREE.BoxGeometry(wallThickness, H, D), wood);
   right.position.set(W / 2, H / 2, 0);
   g.add(right);
+   
+  // Interior floor and lining so the open front reveals depth
+  const floor = new THREE.Mesh(new THREE.BoxGeometry(W - 0.4, 0.14, D - 0.4), floorMat);
+  floor.position.set(0, 0.07, 0);
+  g.add(floor);
+
+  const backInner = new THREE.Mesh(new THREE.BoxGeometry(W - 0.6, H - 0.4, 0.12), innerWallMat);
+  backInner.position.set(0, H / 2 + 0.02, -D / 2 + 0.18);
+  g.add(backInner);
+
+  const leftInner = new THREE.Mesh(new THREE.BoxGeometry(0.12, H - 0.4, D - 0.5), innerWallMat);
+  leftInner.position.set(-W / 2 + 0.18, H / 2 + 0.02, 0);
+  g.add(leftInner);
+
+  const rightInner = new THREE.Mesh(new THREE.BoxGeometry(0.12, H - 0.4, D - 0.5), innerWallMat);
+  rightInner.position.set(W / 2 - 0.18, H / 2 + 0.02, 0);
+  g.add(rightInner);
+
+  // Interior glow to light signage/shelves
+  const warmFill = new THREE.PointLight(0x9bffcf, 0.9, 10);
+  warmFill.position.set(0, 2.4, 0.4);
+  g.add(warmFill);
 
   const roofMesh = new THREE.Mesh(new THREE.ConeGeometry(4.2, 2.6, 4), roof);
   roofMesh.rotation.y = Math.PI / 4;
@@ -622,22 +650,81 @@ function addHomeClickBox(zone, center, sizeVec3) {
   homeClickables.push(box);
 }
 
-function addShopProducts() {
-  // shelf near cabin
-  const shelf = new THREE.Mesh(
-    new THREE.BoxGeometry(7.2, 0.22, 1.25),
-    new THREE.MeshStandardMaterial({ color: 0x141a2a, roughness: 0.85 })
-  );
-  shelf.position.set(-10, 1.05, 2.85);
-  scene.add(shelf);
+function addShopProducts(cabinGroup) {
+  if (!cabinGroup) return;
+
+  const shelfMat = new THREE.MeshStandardMaterial({ color: 0x141a2a, roughness: 0.85 });
+  const backShelfGeo = new THREE.BoxGeometry(4.8, 0.14, 0.48);
+  const sideShelfGeo = new THREE.BoxGeometry(3.8, 0.14, 0.48);
+
+  const W = 6.0, D = 4.6;
+  const shelfLevels = [0.9, 1.55, 2.1];
+  const backZ = -D / 2 + 0.55;
+  const sideX = W / 2 - 0.55;
+
+  // Shelves
+  const shelves = new THREE.Group();
+  shelfLevels.forEach((y) => {
+    const backShelf = new THREE.Mesh(backShelfGeo, shelfMat);
+    backShelf.position.set(0, y, backZ);
+    shelves.add(backShelf);
+  });
+
+  shelfLevels.forEach((y) => {
+    const leftShelf = new THREE.Mesh(sideShelfGeo, shelfMat);
+    leftShelf.position.set(-sideX, y, 0);
+    leftShelf.rotation.y = Math.PI / 2;
+    shelves.add(leftShelf);
+
+    const rightShelf = new THREE.Mesh(sideShelfGeo, shelfMat);
+    rightShelf.position.set(sideX, y, 0);
+    rightShelf.rotation.y = -Math.PI / 2;
+    shelves.add(rightShelf);
+  });
+  cabinGroup.add(shelves);
+
+  // Neon wall labels
+  const labels = [
+    { text: "WOODWORK", color: 0xffb86b, pos: [0, 3.05, backZ + 0.12], rot: 0 },
+    { text: "BITS & BOBS / CRAFTS", color: 0x7aa2ff, pos: [-sideX - 0.05, 3.05, 0], rot: Math.PI / 2 },
+    { text: "BONECRAFT", color: 0x9bffcf, pos: [sideX + 0.05, 3.05, 0], rot: -Math.PI / 2 },
+  ];
+  labels.forEach(({ text, color, pos, rot }) => {
+    const l = neonLabel(text, color);
+    l.position.set(pos[0], pos[1], pos[2]);
+    l.rotation.y = rot;
+    cabinGroup.add(l);
+  });
 
   const baseMat = new THREE.MeshStandardMaterial({ color: 0x2a1f14, roughness: 0.9, emissive: 0x0b1020 });
+  const yOffsets = shelfLevels.map((y) => y + 0.42);
+  const leftX = -sideX + 0.24;
+  const rightX = sideX - 0.24;
+  const zSpread = [ -1.5, 0, 1.5 ];
 
-  products.forEach((p, idx) => {
+  const placements = [
+    // Woodwork (back wall)
+    { id: "p1", pos: [-1.6, yOffsets[0], backZ] },
+    { id: "p2", pos: [0, yOffsets[1], backZ] },
+    { id: "p3", pos: [1.6, yOffsets[2], backZ] },
+    // Bits & Bobs / Crafts (left wall)
+    { id: "p4", pos: [leftX, yOffsets[0], zSpread[0]] },
+    { id: "p6", pos: [leftX, yOffsets[1], zSpread[1]] },
+    { id: "p7", pos: [leftX, yOffsets[2], zSpread[2]] },
+    // Bonecraft (right wall)
+    { id: "p5", pos: [rightX, yOffsets[0], zSpread[0]] },
+    { id: "p8", pos: [rightX, yOffsets[1], zSpread[1]] },
+    { id: "p9", pos: [rightX, yOffsets[2], zSpread[2]] },
+  ];
+
+  placements.forEach(({ id, pos }) => {
+    const p = products.find((pr) => pr.id === id);
+    if (!p) return;
+
     const box = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.72, 0.72), baseMat.clone());
-    box.position.set(-12.8 + idx * 1.25, 1.58, 2.85);
+    box.position.set(pos[0], pos[1], pos[2]);
     box.userData = { type: "product", ...p };
-    scene.add(box);
+    cabinGroup.add(box);
 
     productMeshes.push(box);
     shopClickables.push(box);
