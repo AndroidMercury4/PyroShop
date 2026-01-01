@@ -101,6 +101,7 @@ if (btnBasket) {
   btnBasket.onclick = () => {
     basketPanel.hidden = false;
     renderBasket();
+    triggerCheckoutCelebrate();
   };
 }
 
@@ -223,6 +224,8 @@ function makeProductThumb(name) {
 /* -------------------- 3D INIT -------------------- */
 const sceneHost = document.getElementById("scene");
 let renderer, scene, camera, raycaster, mouse;
+let checkoutKiosk = null;
+let checkoutKiosk = null;
 
 const homeClickables = []; // only active when currentZone === "home"
 const shopClickables = []; // only active when currentZone === "shop"
@@ -236,6 +239,7 @@ const libraryParticleSystems = [];
 const cloudSprites = [];
 let fireflyPoints = null;
 const animalWalkers = [];
+const checkoutFX = { pulseUntil: 0 };
 
 let selectedProduct = null;
 
@@ -310,9 +314,9 @@ function init3D() {
   addAnimalWalkers();
 
   // Checkout kiosk (near campfire, right side)
-  const checkout = createCheckoutKiosk();
-  checkout.position.set(3.2, 0, 0.8);
-  scene.add(checkout);
+  checkoutKiosk = createCheckoutKiosk();
+  checkoutKiosk.position.set(3.2, 0, 0.8);
+  scene.add(checkoutKiosk);
 
   // Shop building (left)
   const cabin = createCabin();
@@ -648,9 +652,59 @@ function createCheckoutKiosk() {
 
   const sign = neonLabel("CHECKOUT", 0xffb86b);
   sign.position.set(0, 1.55, 0.55);
+  sign.userData.baseEmissive = sign.material.emissiveIntensity;
   g.add(sign);
 
+    const hoverCollider = new THREE.Mesh(
+    new THREE.CylinderGeometry(1.1, 1.1, 1.6, 18),
+    new THREE.MeshBasicMaterial({ color: 0x00ffcc, opacity: 0.0, transparent: true, depthWrite: false })
+  );
+  hoverCollider.position.set(0, 0.9, 0.1);
+  hoverCollider.userData.type = "checkoutHover";
+  g.add(hoverCollider);
+  homeClickables.push(hoverCollider);
+
+  const critter = new THREE.Group();
+  const critterMat = new THREE.MeshStandardMaterial({ color: 0x9bffcf, roughness: 0.65, emissive: 0x0b0f14, emissiveIntensity: 0.3 });
+  const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.16, 0.32, 6, 10), critterMat);
+  body.rotation.z = Math.PI / 2;
+  critter.add(body);
+
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.14, 10, 10), critterMat);
+  head.position.set(0.24, 0.02, 0);
+  critter.add(head);
+
+  const tail = new THREE.Mesh(new THREE.CapsuleGeometry(0.05, 0.18, 4, 8), critterMat);
+  tail.position.set(-0.18, -0.02, 0);
+  tail.rotation.z = Math.PI / 2;
+  critter.add(tail);
+
+  const earMat = new THREE.MeshStandardMaterial({ color: 0x7aa2ff, roughness: 0.65, emissive: 0x0b0f14, emissiveIntensity: 0.4 });
+  const earGeo = new THREE.ConeGeometry(0.04, 0.12, 6);
+  const earL = new THREE.Mesh(earGeo, earMat);
+  earL.position.set(0.28, 0.12, 0.06);
+  earL.rotation.z = -0.2;
+  critter.add(earL);
+  const earR = earL.clone();
+  earR.position.z = -0.06;
+  earR.rotation.z = 0.2;
+  critter.add(earR);
+
+  critter.position.set(0.26, 1.2, 0.05);
+  critter.rotation.y = 0.6;
+  critter.userData = {
+    basePos: critter.position.clone(),
+    baseRot: critter.rotation.clone(),
+    tail,
+    tailBaseRot: tail.rotation.clone(),
+    activeAnim: null,
+    lastIdle: 0,
+  };
+  g.add(critter);
+
   g.userData.type = "checkout";
+  g.userData.sign = sign;
+  g.userData.critter = critter;
   return g;
 }
 
@@ -1245,6 +1299,57 @@ function neonLabel(text, accentHex) {
   return new THREE.Mesh(new THREE.PlaneGeometry(2.4, 1.0), mat);
 }
 
+function triggerCheckoutCelebrate() {
+  if (!checkoutKiosk) return;
+  const now = performance.now();
+  checkoutFX.pulseUntil = now + 900;
+
+  const critter = checkoutKiosk.userData?.critter;
+  if (!critter?.userData) return;
+  critter.userData.activeAnim = { type: "hop", t0: now, dur: 900 };
+}
+
+function triggerCheckoutIdleHover() {
+  if (!checkoutKiosk) return;
+  const critter = checkoutKiosk.userData?.critter;
+  if (!critter?.userData) return;
+  const now = performance.now();
+  if (critter.userData.activeAnim && now - critter.userData.activeAnim.t0 < critter.userData.activeAnim.dur) return;
+  if (now - critter.userData.lastIdle < 1200) return;
+  critter.userData.activeAnim = { type: "wag", t0: now, dur: 800 };
+  critter.userData.lastIdle = now;
+}
+
+function updateCheckoutCritter() {
+  if (!checkoutKiosk) return;
+  const critter = checkoutKiosk.userData?.critter;
+  if (!critter?.userData) return;
+  const data = critter.userData;
+  const now = performance.now();
+  const anim = data.activeAnim;
+
+  critter.position.copy(data.basePos);
+  critter.rotation.copy(data.baseRot);
+  data.tail.rotation.copy(data.tailBaseRot);
+
+  if (!anim) return;
+  const u = Math.min(1, (now - anim.t0) / anim.dur);
+  const ease = u * u * (3 - 2 * u);
+
+  if (anim.type === "hop") {
+    critter.position.y += Math.sin(ease * Math.PI) * 0.14;
+    critter.rotation.z += Math.sin(ease * Math.PI) * 0.25;
+    data.tail.rotation.y = Math.sin(ease * Math.PI * 2) * 0.6;
+  }
+  if (anim.type === "wag") {
+    critter.rotation.y += Math.sin(ease * Math.PI * 2) * 0.18;
+    critter.position.y += Math.sin(ease * Math.PI * 2) * 0.04;
+    data.tail.rotation.y = Math.sin(ease * Math.PI * 3.5) * 0.5;
+  }
+
+  if (u >= 1) data.activeAnim = null;
+}
+
 /* -------------------- INPUT (ZONE GATED) -------------------- */
 function getActiveClickables() {
   if (currentZone === "home") return homeClickables;
@@ -1268,8 +1373,15 @@ function onPointerDown(ev) {
   const data = obj.userData || {};
 
   // HOME: click-box travel only
+ if (data.type === "checkoutHover") {
+    triggerCheckoutCelebrate();
+    basketPanel.hidden = false;
+    renderBasket();
+    return;
+  }
   if (data.type === "homeBox") {
     if (data.zone === "checkout") {
+      triggerCheckoutCelebrate();
       basketPanel.hidden = false;
       renderBasket();
       return;
@@ -1301,40 +1413,40 @@ function onPointerDown(ev) {
 }
 
 function onPointerMove(ev) {
-  // tooltip only in blog zone
-  if (currentZone !== "blog") {
-    if (hoverTip) hoverTip.hidden = true;
-    renderer.domElement.style.cursor = "default";
-    return;
-  }
-
+ if (!renderer || !camera) return;
   const rect = renderer.domElement.getBoundingClientRect();
   mouse.x = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
   mouse.y = -(((ev.clientY - rect.top) / rect.height) * 2 - 1);
 
   raycaster.setFromCamera(mouse, camera);
-  const hits = raycaster.intersectObjects(blogClickables, false);
+  const hits = raycaster.intersectObjects(getActiveClickables(), false);
 
-  if (!hits.length) {
-    if (hoverTip) hoverTip.hidden = true;
-    renderer.domElement.style.cursor = "default";
-    return;
+  let cursor = "default";
+  if (hoverTip) hoverTip.hidden = true;
+
+  if (currentZone === "blog" && hits.length) {
+    const data = hits[0].object.userData || {};
+    if (data.type === "book") {
+      cursor = "pointer";
+      if (hoverTip) {
+        hoverTip.hidden = false;
+        hoverTip.textContent = `${data.title} (${data.date})`;
+        hoverTip.style.left = (ev.clientX + 12) + "px";
+        hoverTip.style.top = (ev.clientY + 12) + "px";
+      }
+    }
   }
 
-  const data = hits[0].object.userData || {};
-  if (data.type !== "book") {
-    if (hoverTip) hoverTip.hidden = true;
-    renderer.domElement.style.cursor = "default";
-    return;
+  if (currentZone === "home" && hits.length) {
+    const data = hits[0].object.userData || {};
+    if (data.type === "checkoutHover") {
+      cursor = "pointer";
+      triggerCheckoutIdleHover();
+    }
+    if (data.type === "homeBox") cursor = "pointer";
   }
-
-  renderer.domElement.style.cursor = "pointer";
-  if (hoverTip) {
-    hoverTip.hidden = false;
-    hoverTip.textContent = `${data.title} (${data.date})`;
-    hoverTip.style.left = (ev.clientX + 12) + "px";
-    hoverTip.style.top = (ev.clientY + 12) + "px";
-  }
+   
+  renderer.domElement.style.cursor = cursor;
 }
 
 // Add to basket
@@ -1349,6 +1461,7 @@ if (addBtn) {
     saveBasket();
     basketPanel.hidden = false;
     renderBasket();
+    triggerCheckoutCelebrate();
   };
 }
 
@@ -1460,6 +1573,15 @@ function animate() {
     w.mesh.rotation.y = -a + Math.PI / 2;
     w.mesh.position.y = 0.18 + Math.sin(t * 3 + idx) * 0.02;
   });
+
+  updateCheckoutCritter();
+  if (checkoutKiosk?.userData?.sign) {
+    const sign = checkoutKiosk.userData.sign;
+    const base = sign.userData.baseEmissive || 0.55;
+    const now = performance.now();
+    const pulse = Math.max(0, checkoutFX.pulseUntil - now) / 900;
+    sign.material.emissiveIntensity = base + Math.sin(pulse * Math.PI) * 0.75;
+  }
 
   renderer.render(scene, camera);
 }
